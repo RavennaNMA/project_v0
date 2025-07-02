@@ -1,0 +1,26 @@
+# Location: project_v2/requirements.txt
+# Usage: Python 套件清單
+
+# UI Framework
+PyQt6>=6.5.0
+
+# Computer Vision
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+
+# AI and Machine Learning
+ollama>=0.1.7
+requests>=2.31.0
+
+# Hardware Control
+pyserial>=3.5
+
+# Image Processing
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# System and Utilities
+psutil>=5.9.0
+
+# Windows-specific build tool (only needed for packaging)
+pyinstaller>=6.0.0

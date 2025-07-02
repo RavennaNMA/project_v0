@@ -1,0 +1,70 @@
+# Animation Configuration File (CSV Format)
+# 動畫設定檔 (CSV 格式)
+# 
+# 使用說明：
+# 1. 修改這個檔案可以即時調整動畫效果
+# 2. 參數範圍：
+#    - 平滑度參數(smooth): 0.0-1.0，值越大變化越快
+#    - 持續時間(duration): 正整數，表示幀畫面數
+#    - 透明度(alpha): 0-255，0完全透明，255完全不透明
+#    - 比例參數(ratio): 0.0-1.0，表示相對大小
+#    - 線條粗細(thickness): 正整數，像素數
+# 3. 修改後儲存檔案，程式會在下次檢測到人臉時套用新設定
+#
+# 四個動畫狀態說明：
+# 狀態1: 外框角落線條逐漸出現 (60幀畫面) - 框尺寸放大1.5倍
+# 狀態2: 內框半透明區域出現 (60幀畫面) - 保持之前效果
+# 狀態3: 十字準星線條從中心開始延伸 (60幀畫面) - 保持之前效果  
+# 狀態4: 十字準星線條完全延伸到邊緣 (60幀畫面) - 不會重置，保持穩定
+
+# 格式: Section,Key,Value,Description
+Section,Key,Value,Description
+
+# 基本動畫參數 - 更穩定的設定
+BASIC,position_smooth,0.03,位置變化平滑度 降低位置變化速度更穩定
+BASIC,state1_duration,180,外框角落線條出現時間(幀)
+BASIC,state2_duration,180,內框出現時間(幀)
+BASIC,state3_duration,180,十字線開始延伸時間(幀)
+BASIC,state4_duration,180,十字線完全延伸時間(幀)
+BASIC,frame_size_multiplier,1.3,檢測框放大倍數
+
+# 狀態1設定 - 外框角落線條出現
+STATE1,outside_smooth,0.05,外框尺寸變化的平滑度
+STATE1,corner_length_ratio,0.07,角落線條長度比例(0-0.5)
+STATE1,line_thickness,1,線條粗細(像素)
+
+# 狀態2設定 - 內框出現
+STATE2,outside_smooth,0.05,外框尺寸變化的平滑度
+STATE2,inner_smooth,0.04,內框尺寸變化的平滑度
+STATE2,inner_alpha,50,內框透明度(0-255)
+STATE2,inner_size_ratio,0.9,內框相對於外框的尺寸比例(0-1)
+STATE2,corner_length_ratio,0.07,角落線條長度比例
+STATE2,line_thickness,1,線條粗細
+
+# 狀態3設定 - 十字線開始出現
+STATE3,outside_smooth,0.05,外框尺寸變化的平滑度
+STATE3,inner_smooth,0.04,內框尺寸變化的平滑度
+STATE3,cross_start_smooth,0.04,十字線起始部分的變化平滑度
+STATE3,cross_length_ratio_h,0.59,十字線垂直長度比例(0-1)
+STATE3,cross_length_ratio_w,0.55,十字線水平長度比例(0-1)
+STATE3,corner_length_ratio,0.07,角落線條長度比例
+STATE3,line_thickness,1.25,線條粗細
+STATE3,inner_alpha,50,內框透明度
+STATE3,inner_size_ratio,0.9,內框尺寸比例
+
+# 狀態4設定 - 十字線完全延伸
+STATE4,outside_smooth,0.05,外框尺寸變化的平滑度
+STATE4,inner_smooth,0.04,內框尺寸變化的平滑度
+STATE4,cross_start_smooth,0.04,十字線起始部分的變化平滑度
+STATE4,cross_end_smooth,0.05,十字線終端部分的變化平滑度
+STATE4,cross_length_ratio_h,0.59,十字線垂直長度比例
+STATE4,cross_length_ratio_w,0.55,十字線水平長度比例
+STATE4,corner_length_ratio,0.07,角落線條長度比例
+STATE4,line_thickness,1.5,線條粗細
+
+# 視覺效果
+VISUAL,color_r,255,紅色分量(0-255)
+VISUAL,color_g,255,綠色分量(0-255)
+VISUAL,color_b,255,藍色分量(0-255)
+VISUAL,alpha,200,整體透明度(0-255)
+VISUAL,flicker_probability,0.2,閃爍機率(0.0-1.0) 
