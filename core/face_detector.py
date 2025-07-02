@@ -24,10 +24,10 @@ class FaceDetector(QObject):
         confidence = self.config.get('detection_sensitivity', 0.5)
         
         try:
-        self.face_detection = self.mp_face_detection.FaceDetection(
-            model_selection=0,  # 0: 短距離模型 (更快)
-            min_detection_confidence=confidence
-        )
+            self.face_detection = self.mp_face_detection.FaceDetection(
+                model_selection=0,  # 0: 短距離模型 (更快)
+                min_detection_confidence=confidence
+            )
         except Exception as e:
             print(f"Failed to initialize MediaPipe face detection: {e}")
             self.face_detection = None
@@ -49,34 +49,34 @@ class FaceDetector(QObject):
             return None
             
         try:
-        # 轉換為 RGB (MediaPipe 需要)
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        # 執行偵測
-        results = self.face_detection.process(rgb_frame)
-        
-            if results and hasattr(results, 'detections') and results.detections:
-            # 選擇最大的臉部 (通常是最近的)
-            best_detection = self._select_main_face(results.detections, frame.shape)
+            # 轉換為 RGB (MediaPipe 需要)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             
-            if best_detection:
-                # 轉換為畫面座標
-                bbox = self._get_bbox_coords(best_detection, frame.shape)
+            # 執行偵測
+            results = self.face_detection.process(rgb_frame)
+            
+            if results and hasattr(results, 'detections') and results.detections:
+                # 選擇最大的臉部 (通常是最近的)
+                best_detection = self._select_main_face(results.detections, frame.shape)
+                
+                if best_detection:
+                    # 轉換為畫面座標
+                    bbox = self._get_bbox_coords(best_detection, frame.shape)
                     
                     # 穩定性過濾：只有當變化足夠大時才更新
                     if self._should_update_detection(bbox):
-                self.last_detection = bbox
-                self.face_detected.emit(True, bbox)
-                return bbox
+                        self.last_detection = bbox
+                        self.face_detected.emit(True, bbox)
+                        return bbox
                     elif self.last_detection:
                         # 使用上次的檢測結果，減少抖動
                         self.face_detected.emit(True, self.last_detection)
                         return self.last_detection
-        
-        # 沒有偵測到人臉
-        self.last_detection = None
-        self.face_detected.emit(False, None)
-        return None
+            
+            # 沒有偵測到人臉
+            self.last_detection = None
+            self.face_detected.emit(False, None)
+            return None
             
         except Exception as e:
             print(f"Face detection error: {e}")
@@ -95,13 +95,13 @@ class FaceDetector(QObject):
         for detection in detections:
             try:
                 if hasattr(detection, 'location_data') and detection.location_data:
-            bbox = detection.location_data.relative_bounding_box
+                    bbox = detection.location_data.relative_bounding_box
                     if bbox:
-            area = bbox.width * bbox.height * w * h
-            
-            if area > max_area:
-                max_area = area
-                best_detection = detection
+                        area = bbox.width * bbox.height * w * h
+                        
+                        if area > max_area:
+                            max_area = area
+                            best_detection = detection
             except Exception as e:
                 print(f"Error processing detection: {e}")
                 continue
@@ -111,27 +111,27 @@ class FaceDetector(QObject):
     def _get_bbox_coords(self, detection, frame_shape):
         """將相對座標轉換為絕對座標"""
         try:
-        h, w = frame_shape[:2]
+            h, w = frame_shape[:2]
             
             # 安全地訪問bounding box
             if not hasattr(detection, 'location_data') or not detection.location_data:
                 return None
                 
-        bbox = detection.location_data.relative_bounding_box
+            bbox = detection.location_data.relative_bounding_box
             if not bbox:
                 return None
-        
-        x = int(bbox.xmin * w)
-        y = int(bbox.ymin * h)
-        width = int(bbox.width * w)
-        height = int(bbox.height * h)
-        
-        # 確保座標在畫面範圍內
-        x = max(0, min(x, w - 1))
-        y = max(0, min(y, h - 1))
-        width = min(width, w - x)
-        height = min(height, h - y)
-        
+            
+            x = int(bbox.xmin * w)
+            y = int(bbox.ymin * h)
+            width = int(bbox.width * w)
+            height = int(bbox.height * h)
+            
+            # 確保座標在畫面範圍內
+            x = max(0, min(x, w - 1))
+            y = max(0, min(y, h - 1))
+            width = min(width, w - x)
+            height = min(height, h - y)
+            
             # 安全地獲取confidence值
             confidence = 0.0
             try:
@@ -140,11 +140,11 @@ class FaceDetector(QObject):
             except (AttributeError, IndexError, TypeError):
                 confidence = 0.0
             
-        return {
-            'x': x,
-            'y': y,
-            'width': width,
-            'height': height,
+            return {
+                'x': x,
+                'y': y,
+                'width': width,
+                'height': height,
                 'confidence': confidence
             }
             
@@ -192,6 +192,6 @@ class FaceDetector(QObject):
         """釋放資源"""
         if hasattr(self, 'face_detection') and self.face_detection is not None:
             try:
-            self.face_detection.close()
+                self.face_detection.close()
             except Exception as e:
                 print(f"Error closing face detection: {e}")

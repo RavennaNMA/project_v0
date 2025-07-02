@@ -12,20 +12,20 @@
 # 3. 修改後儲存檔案，程式會在下次檢測到人臉時套用新設定
 #
 # 四個動畫狀態說明：
-# 狀態1: 外框角落線條逐漸出現 (60幀畫面) - 框尺寸放大1.5倍
-# 狀態2: 內框半透明區域出現 (60幀畫面) - 保持之前效果
-# 狀態3: 十字準星線條從中心開始延伸 (60幀畫面) - 保持之前效果  
-# 狀態4: 十字準星線條完全延伸到邊緣 (60幀畫面) - 不會重置，保持穩定
+# 狀態1: 外框角落線條逐漸出現  - 框尺寸放大1.5倍
+# 狀態2: 內框半透明區域出現  - 保持之前效果
+# 狀態3: 十字準星線條從中心開始延伸  - 保持之前效果  
+# 狀態4: 十字準星線條完全延伸到邊緣  - 不會重置，保持穩定
 
 # 格式: Section,Key,Value,Description
 Section,Key,Value,Description
 
 # 基本動畫參數 - 更穩定的設定
 BASIC,position_smooth,0.03,位置變化平滑度 降低位置變化速度更穩定
-BASIC,state1_duration,180,外框角落線條出現時間(幀)
-BASIC,state2_duration,180,內框出現時間(幀)
-BASIC,state3_duration,180,十字線開始延伸時間(幀)
-BASIC,state4_duration,180,十字線完全延伸時間(幀)
+BASIC,state1_duration,200,外框角落線條出現時間(幀)
+BASIC,state2_duration,200,內框出現時間(幀)
+BASIC,state3_duration,240,十字線開始延伸時間(幀)
+BASIC,state4_duration,240,十字線完全延伸時間(幀)
 BASIC,frame_size_multiplier,1.3,檢測框放大倍數
 
 # 狀態1設定 - 外框角落線條出現

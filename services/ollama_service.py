@@ -111,58 +111,77 @@ class OllamaThread(QThread):
         }
         
     def _parse_response(self, response_text):
-        """解析 AI 回應"""
+        """解析 AI 回應 - 強化版"""
         result = {
             'caption': '',
             'caption_tc': '',
             'weapons': []
         }
         
-        lines = response_text.strip().split('\n')
+        # 先移除多餘的空白和換行
+        response_text = response_text.strip()
+        print(f"DEBUG: 原始回應文本:\n{response_text}")
         
-        for line in lines:
-            line = line.strip()
-            if line.startswith('Caption_TC:'):
-                caption_tc = line.replace('Caption_TC:', '').strip()
-                # 清理字幕內容：移除武器相關信息
-                caption_tc = self._clean_caption_text(caption_tc)
-                result['caption_tc'] = caption_tc
-            elif line.startswith('Caption_EN:'):
-                caption_en = line.replace('Caption_EN:', '').strip()
-                # 清理字幕內容：移除武器相關信息
-                caption_en = self._clean_caption_text(caption_en)
-                result['caption'] = caption_en
-            elif line.startswith('Weapons:'):
-                weapons_str = line.replace('Weapons:', '').strip()
-                # 解析武器 ID，確保只提取純數字編號
-                weapons = []
-                for part in weapons_str.replace('[', '').replace(']', '').split(','):
-                    weapon_id = part.strip().strip("'\"")
-                    if weapon_id:
-                        # 提取純數字編號 (如 "02_閃光燈" -> "02", "01" -> "01")
-                        match = re.match(r'^(\d{2})', weapon_id)
-                        if match:
-                            weapons.append(match.group(1))
-                        elif weapon_id.isdigit():
-                            # 如果是純數字，確保是兩位數格式
-                            weapons.append(f"{int(weapon_id):02d}")
-                print(f"DEBUG: 解析到的武器ID列表: {weapons}")
-                result['weapons'] = weapons[:3]  # 最多 3 個
+        # 使用正則表達式強制分離中英文內容
+        # 匹配 Caption_TC: 開頭到 Caption_EN: 之前的內容
+        tc_match = re.search(r'Caption_TC:\s*(.*?)(?=Caption_EN:|Weapons:|$)', response_text, re.DOTALL | re.IGNORECASE)
+        if tc_match:
+            caption_tc = tc_match.group(1).strip()
+            # 移除可能包含的英文部分
+            caption_tc = re.sub(r'Caption_EN:.*', '', caption_tc, flags=re.DOTALL | re.IGNORECASE)
+            caption_tc = self._clean_caption_text(caption_tc)
+            # 驗證是否主要為中文
+            if caption_tc and self._is_primarily_chinese(caption_tc):
+                result['caption_tc'] = caption_tc[:140]  # 適當增加到120字，確保完整性
                 
-        # 再次清理字幕，防止任何武器信息洩漏
+        # 匹配 Caption_EN: 開頭到 Weapons: 之前的內容
+        en_match = re.search(r'Caption_EN:\s*(.*?)(?=Weapons:|$)', response_text, re.DOTALL | re.IGNORECASE)
+        if en_match:
+            caption_en = en_match.group(1).strip()
+            caption_en = self._clean_caption_text(caption_en)
+            # 驗證是否主要為英文
+            if caption_en and self._is_primarily_english(caption_en):
+                result['caption'] = caption_en[:800]  # 增加到800字符，確保包含完整句子
+                
+        # 匹配武器列表
+        weapons_match = re.search(r'Weapons:\s*\[?([^\]]*)\]?', response_text, re.IGNORECASE)
+        if weapons_match:
+            weapons_str = weapons_match.group(1).strip()
+            weapons = []
+            
+            # 解析武器ID - 更嚴格的匹配
+            for part in re.findall(r'\d+', weapons_str):
+                if part.isdigit() and 1 <= int(part) <= 10:
+                    weapons.append(f"{int(part):02d}")
+                    
+            print(f"DEBUG: 解析到的武器ID列表: {weapons}")
+            result['weapons'] = weapons[:3] if weapons else ['01', '02']
+        else:
+            result['weapons'] = ['01', '02']
+        
+        # 最終清理，確保沒有武器相關信息
         if result['caption_tc']:
             result['caption_tc'] = self._clean_caption_text(result['caption_tc'])
         if result['caption']:
             result['caption'] = self._clean_caption_text(result['caption'])
-                
+            
         # 確保有內容
         if not result['caption_tc'] and result['caption']:
-            result['caption_tc'] = self._clean_caption_text(result['caption'])
+            # 如果沒有中文但有英文，不要複製英文到中文
+            pass
         elif not result['caption'] and result['caption_tc']:
-            result['caption'] = self._clean_caption_text(result['caption_tc'])
+            # 如果沒有英文但有中文，不要複製中文到英文
+            pass
             
+        # 如果沒有找到武器，使用預設
         if not result['weapons']:
             result['weapons'] = ['01', '02']
+            
+        # 調試輸出
+        print(f"DEBUG: 解析結果:")
+        print(f"  caption_tc: '{result['caption_tc']}'")
+        print(f"  caption: '{result['caption']}'")
+        print(f"  weapons: {result['weapons']}")
             
         return result
         
@@ -172,19 +191,23 @@ class OllamaThread(QThread):
             return text
             
         # 移除常見的武器信息格式
-        # 移除 "Weapons:" 開頭的行
+        # 移除 "Weapons:" 開頭的內容
         text = re.sub(r'Weapons:\s*\[.*?\]', '', text, flags=re.IGNORECASE)
         text = re.sub(r'Weapons:\s*.*', '', text, flags=re.IGNORECASE)
         
-        # 移除包含武器編號的內容 (如 [01, 02, 03] 或 weapon1_id 等)
+        # 移除包含武器編號的內容
         text = re.sub(r'\[[\d\s,]+\]', '', text)
         text = re.sub(r'\[.*?weapon.*?\]', '', text, flags=re.IGNORECASE)
         text = re.sub(r'weapon\d+_id', '', text, flags=re.IGNORECASE)
         
-        # 移除武器相關詞語和短語
+        # 移除武器相關詞語
         text = re.sub(r'\bweapons?\b\s*(are|is|were|was)?\s*(effective|selected|recommended|chosen)?', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\bselected\s+weapons?\b', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\bweapon\s+(selection|choice)\b', '', text, flags=re.IGNORECASE)
+        
+        # 移除可能的重複內容（例如Caption_TC: Caption_TC: ...）
+        text = re.sub(r'Caption_TC:\s*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'Caption_EN:\s*', '', text, flags=re.IGNORECASE)
         
         # 移除多餘的標點符號和空白
         text = re.sub(r'\s+', ' ', text)  # 多個空格合併為一個
@@ -199,7 +222,27 @@ class OllamaThread(QThread):
         text = re.sub(r'^\.\s*', '', text)  # 移除開頭的句號
         text = re.sub(r'\s*\.$', '.', text)  # 確保只有一個結尾句號
         
+        # 如果整個文本只剩下標點符號，返回空字符串
+        if re.match(r'^[.,;:\s]*$', text):
+            return ''
+        
         return text.strip()
+        
+    def _is_primarily_chinese(self, text):
+        """檢查文本是否主要為中文"""
+        if not text:
+            return False
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
+        total_chars = len(re.findall(r'[a-zA-Z\u4e00-\u9fff]', text))
+        return total_chars > 0 and (chinese_chars / total_chars) > 0.7
+        
+    def _is_primarily_english(self, text):
+        """檢查文本是否主要為英文"""
+        if not text:
+            return False
+        english_chars = len(re.findall(r'[a-zA-Z]', text))
+        total_chars = len(re.findall(r'[a-zA-Z\u4e00-\u9fff]', text))
+        return total_chars > 0 and (english_chars / total_chars) > 0.7
 
 
 class OllamaService(QObject):

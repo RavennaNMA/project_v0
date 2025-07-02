@@ -1,29 +1,23 @@
-根據所分析的內容，想像一個當這個人遇到了戰爭狀態的時候，他容易受到的攻擊狀態，以及生存方案。
+根據人物特徵分析戰場生存策略，發揮創意想像其面臨的威脅和應對方案。
 
-人物描述: 
-{image_description}
+人物描述: {image_description}
+可選武器: {weapon_list}
 
-目前有十種武器可以讓他選擇:
-{weapon_list}
+分析人物的身材、穿著、裝備、姿態，推測戰場弱點並設計創意生存策略。要包含：具體威脅類型、弱點分析、武器選擇理由、詳細使用策略。
 
-分析要求：
-請仔細觀察這個人的外表特徵，包括身材、穿著、裝備、姿態等，分析在戰場環境下可能面臨的具體威脅和弱點。要考慮：
-- 身高體型如何影響被發現的機率和移動能力
-- 衣服顏色和材質是否容易暴露位置
-- 配戴的物品（眼鏡、背包、飾品等）如何成為弱點或優勢
-- 站姿和表情透露出的身體素質和反應能力
-- 根據以上特徵推測最可能遭受的攻擊類型
+【重要格式規則】：
+1. Caption_TC 只能包含繁體中文，絕對不能有任何英文字母
+2. Caption_EN 只能包含英文，絕對不能有任何中文字符  
+3. 兩個Caption都不能包含武器編號數字
+4. 發揮創意詳述策略：Caption_TC 120字內，Caption_EN 120字內
+5. 必須完全按照以下格式輸出，不能有任何偏差
 
-詳細範例參考：
-• 身高比較高的人可能容易受到無人機的攻擊，因為目標輪廓明顯且容易被空中偵測系統發現，在開闊地帶特別危險。這時候他就可以用狙擊電磁炮搭配高壓電磁模組，先用電磁模組干擾無人機的通訊和導航系統讓它失去控制，接著用狙擊電磁炮精準射擊將無人機擊落，最後用鐵鎚把墜落的無人機敲壞確保無法修復重啟。高個子的優勢是臂展長，揮鐵鎚時力矩更大，破壞效果更徹底。
+【標準輸出格式】：
+Caption_TC: [純繁體中文創意分析，詳述威脅、弱點與策略，120字以內]
+Caption_EN: [Pure English creative analysis detailing threats, weaknesses and strategies, within 120 words]
+Weapons: [01, 02, 03]
 
-• 比較矮胖的人移動速度相對較慢，在追逐戰中容易被軍犬或快速移動的敵人追上，但他們的重心低且體重較重，在近戰中不易被推倒。推薦先用閃光燈發出強烈光線致盲追擊者，爭取寶貴的反應時間和逃跑機會，同時戴上安全帽保護頭部免受撲咬或打擊傷害，最後搭配散彈電磁炮進行近距離反擊。因為矮胖的人重心比較低，使用散彈炮時比較不容易被強大的後座力震飛或失去平衡，反而能保持穩定的射擊姿勢進行連續攻擊。
-
-請提供詳細的弱點分析和創意防衛方案，說明為什麼選擇這些武器以及具體的使用策略。
-
-重要：回應的Caption中絕對不要包含武器的數字編號，回應的Caption_TC不能有英文，可以有逗號和句號。
-
-回應格式：
-Caption_TC: [以繁體中文進行詳細分析，包含弱點描述、威脅類型、武器選擇理由和使用策略，80字內]
-Caption_EN: [English detailed analysis including weakness description, threat types, weapon selection reasoning and usage strategy, within 80 words]
-Weapons: [01, 02, 03] (必須是純數字編號，不包含名稱)
+【創意範例】：
+Caption_TC: 此人身高突出易成空襲目標，藍色上衣如信號燈般醒目。敵軍無人機群來襲時，應先用高壓電磁模組製造強烈電磁脈衝，癱瘓機群導航系統使其迷失方向，再以狙擊電磁炮精準狙殺漏網機體。當敵軍步兵接近時，運用身高優勢揮舞鐵鎚進行致命打擊，長臂展能產生更大破壞力。
+Caption_EN: This tall figure becomes prime target for aerial strikes, blue clothing acting like beacon. When enemy drone swarms attack, deploy high-pressure electromagnetic module creating powerful EMP bursts to disable navigation systems and disorient the fleet, then use sniper electromagnetic cannon for precise elimination of remaining units. Against approaching infantry, leverage height advantage wielding hammer for devastating strikes, extended reach generating maximum destructive force.
+Weapons: [03, 05, 01]

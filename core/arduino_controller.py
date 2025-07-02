@@ -12,6 +12,7 @@ class ArduinoThread(QThread):
     """Arduino 控制執行緒"""
     status_changed = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
+    pin_state_changed = pyqtSignal(int, str)  # pin, state
     
     def __init__(self, port, baudrate=9600):
         super().__init__()
@@ -36,7 +37,12 @@ class ArduinoThread(QThread):
             while self.is_running:
                 if self.command_queue:
                     cmd = self.command_queue.pop(0)
-                    self._execute_command(cmd)
+                    
+                    # 檢查指令類型
+                    if cmd.get('type') == 'pin_state':
+                        self._execute_pin_state_command(cmd)
+                    else:
+                        self._execute_command(cmd)
                     
                 self.msleep(10)
                 
@@ -72,6 +78,7 @@ class ArduinoThread(QThread):
         # 設為 HIGH
         self._send_command(f"H{pin}")
         self.status_changed.emit(f"Pin {pin} -> HIGH")
+        self.pin_state_changed.emit(pin, "HIGH")
         
         # 維持 HIGH
         time.sleep(high_time / 1000.0)
@@ -79,6 +86,7 @@ class ArduinoThread(QThread):
         # 設回 LOW
         self._send_command(f"L{pin}")
         self.status_changed.emit(f"Pin {pin} -> LOW")
+        self.pin_state_changed.emit(pin, "LOW")
         
         # 後延遲
         if wait_after > 0:
@@ -92,6 +100,35 @@ class ArduinoThread(QThread):
             'high_time': high_time,
             'wait_after': wait_after
         })
+        
+    def add_pin_state_command(self, pin, state, wait_before=0):
+        """新增Pin狀態控制指令（不自動切換）"""
+        self.command_queue.append({
+            'type': 'pin_state',
+            'pin': pin,
+            'state': state,  # 'HIGH' or 'LOW'
+            'wait_before': wait_before
+        })
+        
+    def _execute_pin_state_command(self, cmd):
+        """執行Pin狀態控制指令"""
+        pin = cmd['pin']
+        state = cmd['state']
+        wait_before = cmd.get('wait_before', 0)
+        
+        # 前延遲
+        if wait_before > 0:
+            time.sleep(wait_before / 1000.0)
+            
+        # 直接設置Pin狀態
+        if state == 'HIGH':
+            self._send_command(f"H{pin}")
+            self.status_changed.emit(f"Pin {pin} -> HIGH (持續)")
+            self.pin_state_changed.emit(pin, "HIGH")
+        elif state == 'LOW':
+            self._send_command(f"L{pin}")
+            self.status_changed.emit(f"Pin {pin} -> LOW")
+            self.pin_state_changed.emit(pin, "LOW")
         
     def stop(self):
         """停止執行緒"""
@@ -109,6 +146,11 @@ class ArduinoController(QObject):
         self.arduino_thread = None
         self.is_connected = False
         self.current_port = None
+        self.pin_states = {}  # 追蹤pin狀態
+        
+        # 初始化所有pin為LOW
+        for pin in range(2, 14):
+            self.pin_states[pin] = "LOW"
         
     def connect(self, port):
         """連接 Arduino"""
@@ -118,6 +160,7 @@ class ArduinoController(QObject):
         self.arduino_thread = ArduinoThread(port)
         self.arduino_thread.status_changed.connect(self._on_status_changed)
         self.arduino_thread.error_occurred.connect(self._on_error)
+        self.arduino_thread.pin_state_changed.connect(self.update_pin_state)
         self.arduino_thread.start()
         
         self.current_port = port
@@ -149,6 +192,23 @@ class ArduinoController(QObject):
             return
             
         self.arduino_thread.add_command(pin, wait_before, high_time, wait_after)
+        
+    def set_pin_state(self, pin, state, wait_before=0):
+        """直接設置Pin狀態（不自動切換）"""
+        if not self.is_connected or not self.arduino_thread:
+            self.error_occurred.emit("Arduino 未連接")
+            return
+            
+        print(f"Setting Pin {pin} to {state} via direct command")
+        self.arduino_thread.add_pin_state_command(pin, state, wait_before)
+        
+    def get_pin_state(self, pin):
+        """獲取pin狀態"""
+        return self.pin_states.get(pin, "LOW")
+        
+    def update_pin_state(self, pin, state):
+        """更新pin狀態"""
+        self.pin_states[pin] = state
         
     @staticmethod
     def get_available_ports():

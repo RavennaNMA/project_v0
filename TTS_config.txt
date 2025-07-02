@@ -21,7 +21,10 @@ voice_selection_mode=manual
 # 手動指定語音ID (當voice_selection_mode=manual時使用)
 # 常見的Windows內建語音ID：
 # - HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TTS_MS_EN-US_DAVID_11.0
-# 默認
+# - HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TTS_MS_EN-US_ZIRA_11.0
+# macOS語音ID範例：
+# - com.apple.speech.synthesis.voice.Alex
+# - com.apple.speech.synthesis.voice.Victoria
 preferred_voice_id=HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TTS_MS_EN-US_DAVID_11.0
 
 # =================================================================
@@ -35,7 +38,7 @@ preferred_voice_id=HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TT
 # 150-200: 正常速度
 # 200-250: 快速
 # 250-300: 很快
-rate=150
+rate=90
 
 # 音量 (Volume)
 # 範圍：0.0-1.0
@@ -48,13 +51,25 @@ volume=0.7
 # 語音特效設定 (Voice Effects)
 # =================================================================
 
-# 音調調整 (Pitch Adjustment) - 實驗性功能
+# 音調調整 (Pitch Adjustment)
 # 某些TTS引擎支持音調調整
 # 範圍：-50 到 +50 (相對百分比)
-# 負值：更低沉的聲音
-# 正值：更高的聲音
+# 負值：更低沉的聲音（機械感、威嚴感）
+# 0: 正常音調
+# 正值：更高的聲音（活潑、輕快）
 # 注意：不是所有語音引擎都支持此功能
-pitch_adjustment=0
+pitch_adjustment=-15
+
+# 強調停頓效果 (Enhance Punctuation Pauses)
+# true: 加強標點符號的停頓效果
+# false: 使用默認停頓
+enhance_punctuation_pauses=true
+
+# 使用SSML標記 (Use SSML Markup)
+# true: 支持SSML語音標記語言（部分引擎支持）
+# false: 純文本模式
+# SSML允許更精細的語音控制，如停頓、重音、語速變化等
+use_ssml=false
 
 # =================================================================
 # 語音過濾設定 (Text Filtering)
@@ -91,6 +106,47 @@ text_processing_delay=100
 error_retry_count=2
 
 # =================================================================
+# 同步設定 (Synchronization Settings)
+# =================================================================
+
+# 同步朗讀模式
+# true: 等待朗讀完成後再處理下一個
+# false: 異步處理，可能重疊
+synchronous_speech=true
+
+# 自動停止上一個朗讀
+# true: 新文本開始時停止當前朗讀
+# false: 排隊等待
+auto_stop_previous=false
+
+# 字符進度回報間隔 (毫秒)
+# 回報當前朗讀進度的時間間隔
+# 設置較小值可獲得更流暢的同步效果，但會增加CPU使用
+progress_report_interval=50
+
+# =================================================================
+# 聲線調整 (Voice Character Settings)
+# =================================================================
+
+# 語氣強度 (Emphasis Level)
+# 0: 平淡無情感
+# 1: 輕微強調
+# 2: 中等強調
+# 3: 強烈強調
+emphasis_level=1
+
+# 語速變化 (Speed Variation)
+# true: 根據句子內容自動調整語速
+# false: 保持恆定語速
+enable_speed_variation=false
+
+# 停頓時長倍數 (Pause Duration Multiplier)
+# 1.0: 正常停頓
+# 0.5: 停頓時間減半（更連貫）
+# 2.0: 停頓時間加倍（更慎重）
+pause_duration_multiplier=1.5
+
+# =================================================================
 # 調試設定 (Debug Settings)
 # =================================================================
 
@@ -116,29 +172,32 @@ test_text=Defense system TTS configuration loaded successfully.
 # 可選：sapi5, espeak, nsss, dummy
 engine_priority=sapi5
 
-# 同步朗讀模式
-# true: 等待朗讀完成後再處理下一個
-# false: 異步處理，可能重疊
-synchronous_speech=true
+# 緩衝區大小 (Buffer Size)
+# 語音緩衝區大小（毫秒）
+# 較大的緩衝區可減少卡頓，但會增加延遲
+buffer_size=200
 
-# 自動停止上一個朗讀
-# true: 新文本開始時停止當前朗讀
-# false: 排隊等待
-auto_stop_previous=false
+# 預載入下一句 (Preload Next Sentence)
+# true: 提前準備下一句，減少句子間的停頓
+# false: 逐句處理
+preload_next_sentence=true
 
 # =================================================================
 # 語音風格建議 (Voice Style Recommendations)
 # =================================================================
 # 
-# 中性機械感語音設定建議：
-# - rate=100-130 (較慢速度)
-# - volume=0.6-0.8 (中等音量)
-# - 選擇David語音 (較低沉，機械感)
-# - pitch_adjustment=-10到-20 (如果支持)
+# 防禦系統機械音效建議設定：
+# - rate=120-140 (較慢速度，增加威嚴感)
+# - volume=0.7-0.8 (中等偏高音量)
+# - pitch_adjustment=-10到-20 (低沉音調)
+# - emphasis_level=1 (輕微強調)
+# - pause_duration_multiplier=1.2-1.5 (較長停頓)
 #
-# 更有控制感的設定：
-# - auto_stop_previous=true (立即響應)
-# - synchronous_speech=true (確保完整朗讀)
-# - verbose_logging=true (提供反饋)
+# 緊急警報音效建議設定：
+# - rate=160-180 (較快速度)
+# - volume=0.8-0.9 (高音量)
+# - pitch_adjustment=0到+10 (稍高音調)
+# - emphasis_level=2-3 (強烈強調)
+# - pause_duration_multiplier=0.8 (較短停頓)
 #
-# ================================================================= 
+# =================================================================

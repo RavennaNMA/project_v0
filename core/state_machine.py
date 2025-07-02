@@ -12,6 +12,7 @@ class SystemState(Enum):
     SCREENSHOT_TRIGGER = "SCREENSHOT_TRIGGER" 
     LLM_LOADING = "LLM_LOADING"
     CAPTION = "CAPTION"
+    SPOTLIGHT = "SPOTLIGHT"  # 新增聚光燈狀態
     IMG_SHOW = "IMG_SHOW"
     RESET = "RESET"
 
@@ -26,6 +27,7 @@ class StateMachine(QObject):
     screenshot_requested = pyqtSignal()
     llm_analysis_requested = pyqtSignal(str)  # 圖片路徑
     caption_display_requested = pyqtSignal(dict)  # AI 回應
+    spotlight_requested = pyqtSignal()  # 新增聚光燈信號
     weapon_display_requested = pyqtSignal(list)  # 武器列表
     reset_requested = pyqtSignal()
     
@@ -36,6 +38,7 @@ class StateMachine(QObject):
         self.detection_start_time = None
         self.face_detected = False
         self.no_llm_mode = False
+        self.pending_weapons = []  # 暫存武器列表
         
         # 計時器
         self.state_timer = QTimer()
@@ -71,6 +74,7 @@ class StateMachine(QObject):
             # 重置偵測
             self.detection_start_time = None
             self.face_detected = False
+            self.pending_weapons = []
             
         elif state == SystemState.SCREENSHOT_TRIGGER:
             # 觸發截圖
@@ -93,8 +97,13 @@ class StateMachine(QObject):
             pass
             
         elif state == SystemState.CAPTION:
-            # 字幕顯示不使用計時器，等待 typing_complete 信號
+            # 字幕顯示不使用計時器，等待完成信號
             pass
+            
+        elif state == SystemState.SPOTLIGHT:
+            # 聚光燈狀態
+            self.spotlight_requested.emit()
+            # Spotlight狀態不需要計時器，由SSR控制器決定何時進入下一狀態
             
         elif state == SystemState.IMG_SHOW:
             # 武器展示會由 weapon display 控制時間
@@ -140,14 +149,22 @@ class StateMachine(QObject):
     def on_llm_complete(self, response):
         """AI 分析完成"""
         if self.current_state == SystemState.LLM_LOADING:
+            # 暫存武器列表
+            self.pending_weapons = response.get('weapons', [])
             self.transition_to(SystemState.CAPTION)
             self.caption_display_requested.emit(response)
             
-    def on_weapon_display_requested(self, weapon_ids):
-        """武器展示請求"""
+    def on_caption_complete(self):
+        """字幕顯示完成（包括打字和等待）"""
         if self.current_state == SystemState.CAPTION:
+            # 進入聚光燈狀態
+            self.transition_to(SystemState.SPOTLIGHT)
+            
+    def on_spotlight_ready(self):
+        """聚光燈準備完成，可以顯示武器"""
+        if self.current_state == SystemState.SPOTLIGHT:
             self.transition_to(SystemState.IMG_SHOW)
-            self.weapon_display_requested.emit(weapon_ids)
+            self.weapon_display_requested.emit(self.pending_weapons)
             
     def on_weapon_display_complete(self):
         """武器展示完成"""
