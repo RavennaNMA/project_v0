@@ -12,7 +12,7 @@ class VoiceModConfigLoader(QObject):
     def __init__(self, config_file: Optional[str] = None):
         super().__init__()
         if config_file is None:
-            config_file = "voice_mod_config.txt"
+            config_file = "config/voice_mod_config.txt"
         self.config_file = config_file
         self.config_data = {}
         

@@ -24,8 +24,8 @@ class SSRConfig:
     def load_config(self):
         """載入配置"""
         try:
-            if os.path.exists('otherssr_config.csv'):
-                with open('otherssr_config.csv', 'r', encoding='utf-8') as f:
+            if os.path.exists('config/otherssr_config.csv'):
+                with open('config/otherssr_config.csv', 'r', encoding='utf-8') as f:
                     reader = csv.DictReader(f)
                     for row in reader:
                         if row['name'] == 'SSR1':
@@ -41,7 +41,7 @@ class SSRConfig:
                             
                 print(f"SSR設定載入：SSR1 Pin {self.ssr1_pin}, SSR2 Pin {self.ssr2_pin}")
             else:
-                print("otherssr_config.csv 不存在，創建預設配置")
+                print("config/otherssr_config.csv 不存在，創建預設配置")
                 self.create_default_config()
                 
         except Exception as e:
@@ -51,12 +51,12 @@ class SSRConfig:
     def create_default_config(self):
         """創建預設配置檔案"""
         try:
-            with open('otherssr_config.csv', 'w', newline='', encoding='utf-8') as f:
+            with open('config/otherssr_config.csv', 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow(['name', 'pin', 'delay_before', 'high_time', 'wait_after'])
                 writer.writerow(['SSR1', 12, 0, 0, 0])
                 writer.writerow(['SSR2', 13, 0, 0, 0])
-            print("已創建預設 otherssr_config.csv")
+            print("已創建預設 config/otherssr_config.csv")
         except Exception as e:
             print(f"創建預設配置時發生錯誤: {e}")
 

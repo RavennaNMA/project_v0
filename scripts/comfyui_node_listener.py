@@ -18,7 +18,7 @@ class ComfyUINodeListener:
         self.comfyui_url = f"http://{comfyui_host}:{comfyui_port}"
         self.ws_url = f"ws://{comfyui_host}:{comfyui_port}/ws"
         
-        self.config_path = Path("voice_mod_config.txt")
+        self.config_path = Path("../config/voice_mod_config.txt")
         self.ws = None
         self.running = False
         self.last_prompt_id = None

@@ -26,7 +26,7 @@ class ComfyUISyncService(QObject):
         self.ws_url = f"ws://{comfyui_host}:{comfyui_port}/ws"
         
         # 配置文件路徑
-        self.config_path = Path("voice_mod_config.txt")
+        self.config_path = Path("config/voice_mod_config.txt")
         self.comfyui_config_path = Path("comfyui_voice_config.json")
         
         # 狀態管理

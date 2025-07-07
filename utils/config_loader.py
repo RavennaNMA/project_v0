@@ -16,7 +16,7 @@ class ConfigLoader(QObject):
         
     def load_period_config(self):
         """載入時間設定"""
-        config_path = "period_config.csv"
+        config_path = "config/period_config.csv"
         
         if not os.path.exists(config_path):
             print(f"找不到設定檔: {config_path}")
@@ -39,7 +39,7 @@ class ConfigLoader(QObject):
             
     def load_weapon_config(self):
         """載入武器設定"""
-        config_path = "weapon_config.csv"
+        config_path = "config/weapon_config.csv"
         
         if not os.path.exists(config_path):
             print(f"找不到設定檔: {config_path}")
@@ -170,7 +170,7 @@ class ConfigLoader(QObject):
         
     def save_period_config(self):
         """儲存時間設定"""
-        config_path = "period_config.csv"
+        config_path = "config/period_config.csv"
         
         try:
             with open(config_path, 'w', encoding='utf-8', newline='') as f:

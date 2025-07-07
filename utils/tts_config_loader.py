@@ -9,7 +9,7 @@ from typing import Dict, Any, Union
 class TTSConfigLoader:
     """TTS 配置文件加載器"""
     
-    def __init__(self, config_file='tts_config.txt'):
+    def __init__(self, config_file='config/tts_config.txt'):
         self.config_file = config_file
         self.config = {}
         self.load_config()

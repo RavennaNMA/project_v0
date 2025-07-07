@@ -9,7 +9,7 @@ from typing import Dict, Any, Union
 class AnimConfigLoader:
     """動畫配置文件加載器 - 用於讀取 anim_config.csv"""
     
-    def __init__(self, config_file='anim_config.csv'):
+    def __init__(self, config_file='config/anim_config.csv'):
         self.config_file = config_file
         self.config = {}
         self.load_config()

@@ -34,11 +34,11 @@ def build_windows_exe():
     # 準備資源檔案
     print("\n準備資源檔案...")
     data_files = [
-        ('fonts', 'fonts'),
-        ('weapons_img', 'weapons_img'),
-        ('period_config.csv', '.'),
-        ('weapon_config.csv', '.'),
-        ('prompt_config.txt', '.')
+        ('../fonts', 'fonts'),
+        ('../weapons_img', 'weapons_img'),
+        ('../config/period_config.csv', '.'),
+        ('../config/weapon_config.csv', '.'),
+        ('../config/prompt_config.txt', '.')
     ]
     
     # 建立 PyInstaller 參數
@@ -95,15 +95,15 @@ def build_windows_exe():
             os.makedirs('dist/fonts', exist_ok=True)
             
             # 複製設定檔
-            config_files = ['period_config.csv', 'weapon_config.csv', 'prompt_config.txt']
+            config_files = ['../config/period_config.csv', '../config/weapon_config.csv', '../config/prompt_config.txt']
             for file in config_files:
                 if os.path.exists(file):
                     shutil.copy(file, 'dist/')
                     print(f"已複製: {file}")
                     
             # 複製字型
-            if os.path.exists('fonts/NotoSansCJKtc-Regular.otf'):
-                shutil.copy('fonts/NotoSansCJKtc-Regular.otf', 'dist/fonts/')
+            if os.path.exists('../fonts/NotoSansCJKtc-Regular.otf'):
+                shutil.copy('../fonts/NotoSansCJKtc-Regular.otf', 'dist/fonts/')
                 print("已複製字型檔案")
                 
             print("\n執行檔位置: dist/DefenseDetectionSystem.exe")

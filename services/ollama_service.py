@@ -259,7 +259,7 @@ class OllamaService(QObject):
         
     def _load_prompt_template(self):
         """載入提示詞模板"""
-        template_path = "prompt_config.txt"
+        template_path = "config/prompt_config.txt"
         
         if os.path.exists(template_path):
             with open(template_path, 'r', encoding='utf-8') as f:

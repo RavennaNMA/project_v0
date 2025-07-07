@@ -35,11 +35,12 @@
 
 2. **設定執行權限**
    ```bash
-   chmod +x st_mac.command
+   chmod +x scripts/st_mac.command
    ```
 
 3. **雙擊執行**
-   - 在 Finder 中找到 `st_mac.command`
+   - 在 Finder 中進入 `scripts/` 目錄
+   - 找到 `st_mac.command`
    - 雙擊執行
    - 首次執行會自動安裝相依套件
 
@@ -47,47 +48,63 @@
 
 1. **下載專案並解壓縮**
 
-2. **方法一：使用批次檔**
-   - 雙擊 `start_windows.bat`
+2. **方法一：使用啟動檔（推薦）**
+   - 雙擊 `start_system.bat`
    - 首次執行會自動建立虛擬環境並安裝套件
 
-3. **方法二：使用執行檔**
-   ```cmd
-   python build_windows.py
-   ```
+3. **方法二：使用詳細啟動檔**
+   - 進入 `scripts/` 目錄
+   - 雙擊 `start_windows.bat`
+
+4. **方法三：建立執行檔**
+   - 進入 `scripts/` 目錄
+   - 執行 `python build_windows.py`
    - 選擇 'y' 建立 .exe 檔案
    - 執行 `dist/DefenseDetectionSystem.exe`
 
 ## 設定檔案說明
 
-### period_config.csv
+### config/period_config.csv
 控制系統各階段的時間設定：
 - `detect_duration`：人臉偵測觸發時間（秒）
 - `screenshot_fade_in`：截圖淡入時間
 - `caption_typing_speed`：字幕打字速度（毫秒/字）
 - `cooldown_time`：系統重置冷卻時間
 
-### weapon_config.csv
+### config/weapon_config.csv
 定義武器資訊與控制參數：
 - 武器編號、名稱、圖片路徑
 - Arduino 腳位編號
 - 控制時序（延遲、HIGH 時間、等待時間）
 - 顯示效果時間（淡入、顯示、淡出）
 
-### prompt_config.txt
+### config/prompt_config.txt
 AI 分析的提示詞模板，可自訂分析邏輯
 
 ## 目錄結構
 
 ```
 project_v2/
-├── st_mac.command          # Mac 啟動檔
-├── start_windows.bat       # Windows 批次檔
 ├── main.py                 # 主程式
+├── start_system.bat        # Windows 啟動檔
 ├── requirements.txt        # Python 套件清單
-├── period_config.csv       # 時間設定
-├── weapon_config.csv       # 武器設定
-├── prompt_config.txt       # AI 提示詞
+├── config/                 # 配置檔案目錄
+│   ├── period_config.csv   # 時間設定
+│   ├── weapon_config.csv   # 武器設定
+│   ├── prompt_config.txt   # AI 提示詞
+│   ├── tts_config.txt      # TTS 語音設定
+│   ├── voice_mod_config.txt # 語音修改設定
+│   └── anim_config.csv     # 動畫配置
+├── scripts/                # 腳本檔案目錄
+│   ├── start_windows.bat   # Windows 詳細啟動檔
+│   ├── st_mac.command      # Mac 啟動檔
+│   ├── build_windows.py    # Windows 打包腳本
+│   ├── create_config.py    # 配置建立工具
+│   └── ...                 # 其他測試和工具腳本
+├── hardware/               # 硬體相關檔案
+│   └── defense_system_arduino.ino  # Arduino 程式碼
+├── docs/                   # 文件目錄
+│   └── VOICE_MOD_GUIDE.md  # 語音修改指南
 ├── core/                   # 核心功能
 ├── ui/                     # 使用者介面
 ├── services/               # 服務模組
