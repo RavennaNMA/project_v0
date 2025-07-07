@@ -1,273 +1,342 @@
-# 防禦偵測系統 v2
+# Defense Detection System v2
 
-即時人臉偵測系統，整合 AI 分析與 Arduino 控制，支援 Mac 和 Windows 平台。
+A comprehensive AI-powered defense detection system integrating ComfyUI, voice modification, computer vision, and hardware control capabilities.
 
-## 系統特色
+## System Requirements
 
-- 🎯 **高效能人臉偵測**：使用 MediaPipe 實現 30+ FPS 即時偵測
-- 🤖 **雙模型 AI 分析**：圖像識別 + 策略生成（可選）
-- 🎮 **Arduino 整合**：自動化物理回饋控制
-- 🖼️ **動態視覺效果**：偵測動畫、淡入淡出、打字機字幕
-- 💻 **跨平台支援**：Mac 和 Windows 雙平台執行
-- 🚀 **簡易啟動**：雙擊執行，無需命令列
+### macOS Requirements
+- **macOS Version**: 10.15 (Catalina) or later
+- **Architecture**: Intel x64 or Apple Silicon (M1/M2/M3)
+- **RAM**: Minimum 8GB, Recommended 16GB+
+- **Storage**: Minimum 10GB free space
+- **Camera**: Built-in or USB camera (system will request permissions)
 
-## 系統需求
+### Python Requirements
+- **Python Version**: 3.8.0 or later (recommended: 3.10.x)
+- **Package Manager**: pip 21.0+ 
+- **Virtual Environment**: venv or conda
 
-### 軟體需求
-- Python 3.8 或以上
-- Ollama（選配，用於 AI 功能）
-- 網路攝影機（建議 1080p 或以上）
+### Hardware Requirements (Optional)
+- **Arduino Board**: Arduino Mega for hardware control
+- **Serial Connection**: USB cable for Arduino communication
+- **GPIO Devices**: Relays, LEDs, or other control devices (pins 2-13)
 
-### 硬體需求
-- 作業系統：macOS 10.15+ 或 Windows 10/11
-- 記憶體：8GB RAM（建議 16GB）
-- Arduino Uno/Mega（選配）
+## Installation Guide
 
-## 快速開始
-
-### Mac 用戶
-
-1. **下載專案**
-   ```bash
-   git clone [專案網址]
-   cd project_v2
-   ```
-
-2. **設定執行權限**
-   ```bash
-   chmod +x scripts/st_mac.command
-   ```
-
-3. **雙擊執行**
-   - 在 Finder 中進入 `scripts/` 目錄
-   - 找到 `st_mac.command`
-   - 雙擊執行
-   - 首次執行會自動安裝相依套件
-
-### Windows 用戶
-
-1. **下載專案並解壓縮**
-
-2. **方法一：使用啟動檔（推薦）**
-   - 雙擊 `start_system.bat`
-   - 首次執行會自動建立虛擬環境並安裝套件
-
-3. **方法二：使用詳細啟動檔**
-   - 進入 `scripts/` 目錄
-   - 雙擊 `start_windows.bat`
-
-4. **方法三：建立執行檔**
-   - 進入 `scripts/` 目錄
-   - 執行 `python build_windows.py`
-   - 選擇 'y' 建立 .exe 檔案
-   - 執行 `dist/DefenseDetectionSystem.exe`
-
-## 設定檔案說明
-
-### config/period_config.csv
-控制系統各階段的時間設定：
-- `detect_duration`：人臉偵測觸發時間（秒）
-- `screenshot_fade_in`：截圖淡入時間
-- `caption_typing_speed`：字幕打字速度（毫秒/字）
-- `cooldown_time`：系統重置冷卻時間
-
-### config/weapon_config.csv
-定義武器資訊與控制參數：
-- 武器編號、名稱、圖片路徑
-- Arduino 腳位編號
-- 控制時序（延遲、HIGH 時間、等待時間）
-- 顯示效果時間（淡入、顯示、淡出）
-
-### config/prompt_config.txt
-AI 分析的提示詞模板，可自訂分析邏輯
-
-## 目錄結構
-
-```
-project_v2/
-├── main.py                 # 主程式
-├── start_system.bat        # Windows 啟動檔
-├── requirements.txt        # Python 套件清單
-├── config/                 # 配置檔案目錄
-│   ├── period_config.csv   # 時間設定
-│   ├── weapon_config.csv   # 武器設定
-│   ├── prompt_config.txt   # AI 提示詞
-│   ├── tts_config.txt      # TTS 語音設定
-│   ├── voice_mod_config.txt # 語音修改設定
-│   └── anim_config.csv     # 動畫配置
-├── scripts/                # 腳本檔案目錄
-│   ├── start_windows.bat   # Windows 詳細啟動檔
-│   ├── st_mac.command      # Mac 啟動檔
-│   ├── build_windows.py    # Windows 打包腳本
-│   ├── create_config.py    # 配置建立工具
-│   └── ...                 # 其他測試和工具腳本
-├── hardware/               # 硬體相關檔案
-│   └── defense_system_arduino.ino  # Arduino 程式碼
-├── docs/                   # 文件目錄
-│   └── VOICE_MOD_GUIDE.md  # 語音修改指南
-├── core/                   # 核心功能
-├── ui/                     # 使用者介面
-├── services/               # 服務模組
-├── utils/                  # 工具函式
-├── fonts/                  # 字型檔案
-├── webcam-shots/          # 截圖儲存
-└── weapons_img/           # 武器圖片
-```
-
-## 使用教學
-
-### 啟動系統
-
-1. **相機選擇**：啟動時選擇要使用的網路攝影機
-2. **Arduino 設定**：選擇串口（選配）
-3. **模式選擇**：
-   - 全螢幕模式
-   - Debug 模式（顯示系統狀態）
-   - No LLM 模式（跳過 AI 分析）
-
-### 運作流程
-
-1. **偵測階段**：系統持續偵測人臉
-2. **觸發擷取**：偵測到人臉 3 秒後自動擷取畫面
-3. **AI 分析**：分析圖像並生成防禦策略（可跳過）
-4. **顯示結果**：顯示截圖、字幕與武器圖片
-5. **物理回饋**：控制 Arduino 執行對應動作
-6. **系統重置**：冷卻後返回偵測狀態
-
-## AI 功能設定
-
-### 安裝 Ollama
-
-1. 前往 [Ollama 官網](https://ollama.ai) 下載安裝
-2. 安裝所需模型：
-   ```bash
-   ollama pull llava
-   ollama pull yi:9b-q4_K_M
-   ```
-
-### No LLM 模式
-
-如果不使用 AI 功能，可在啟動時勾選「No LLM 模式」，系統將：
-- 跳過圖像分析階段
-- 使用預設防禦策略
-- 自動選擇武器 01 和 02
-
-## Arduino 整合
-
-### 接線說明
-
-- 數位腳位 2-13：連接到繼電器或 LED
-- GND：共地連接
-
-### 控制邏輯
-
-1. 所有腳位預設為 LOW
-2. 觸發時按照設定順序執行：
-   - 等待前延遲
-   - 設定為 HIGH
-   - 維持指定時間
-   - 恢復為 LOW
-   - 等待後延遲
-
-### Arduino 程式碼範例
-
-```cpp
-void setup() {
-  Serial.begin(9600);
-  for(int i = 2; i <= 13; i++) {
-    pinMode(i, OUTPUT);
-    digitalWrite(i, LOW);
-  }
-}
-
-void loop() {
-  if(Serial.available()) {
-    String cmd = Serial.readStringUntil('\n');
-    char action = cmd.charAt(0);
-    int pin = cmd.substring(1).toInt();
-    
-    if(action == 'H') {
-      digitalWrite(pin, HIGH);
-    } else if(action == 'L') {
-      digitalWrite(pin, LOW);
-    }
-  }
-}
-```
-
-## 故障排除
-
-### 相機無法開啟
-- **Mac**：檢查系統偏好設定 > 安全性與隱私 > 相機權限
-- **Windows**：檢查隱私設定 > 相機存取權
-
-### 找不到 Arduino
-- 確認 Arduino 已正確連接
-- 安裝對應的驅動程式
-- 檢查串口是否被其他程式佔用
-
-### AI 分析失敗
-- 確認 Ollama 已安裝並執行中
-- 檢查是否已下載所需模型
-- 可使用 No LLM 模式跳過 AI 功能
-
-### 中文顯示問題
-- 確認 `fonts/NotoSansCJKtc-Regular.otf` 檔案存在
-- 系統會自動使用平台預設中文字型作為備援
-
-## 進階設定
-
-### 自訂武器
-
-1. 準備武器圖片（建議 PNG 格式，透明背景）
-2. 放入 `weapons_img/` 目錄
-3. 編輯 `weapon_config.csv` 新增武器資訊
-4. 重新啟動系統
-
-### 調整時間參數
-
-編輯 `period_config.csv` 可調整：
-- 偵測靈敏度
-- 動畫速度
-- 顯示時間
-- 系統反應速度
-
-### 自訂 AI 提示詞
-
-編輯 `prompt_config.txt` 可自訂：
-- 分析重點
-- 回應格式
-- 武器選擇邏輯
-
-## 開發者資訊
-
-### 建置開發環境
+### Step 1: Verify System Prerequisites
 
 ```bash
-# 建立虛擬環境
-python -m venv venv
+# Check Python version
+python3 --version
 
-# 啟動虛擬環境
-# Mac/Linux:
+# Check pip version  
+pip3 --version
+
+# Install Xcode Command Line Tools (if not already installed)
+xcode-select --install
+```
+
+### Step 2: Clone Repository in Cursor
+
+1. Open Cursor IDE
+2. Use `Cmd+Shift+P` and select "Git: Clone"
+3. Enter repository URL or open local folder
+4. Navigate to project directory
+
+### Step 3: Create Virtual Environment
+
+```bash
+# Navigate to project directory
+cd /path/to/defense_system_v1/project_v2
+
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
 source venv/bin/activate
-# Windows:
-venv\Scripts\activate
 
-# 安裝開發套件
+# Upgrade pip
+pip install --upgrade pip
+```
+
+### Step 4: Install Python Dependencies
+
+#### Main Project Dependencies
+```bash
+# Install core requirements
 pip install -r requirements.txt
 ```
 
-### 程式架構
+#### ComfyUI Dependencies
+```bash
+# Navigate to ComfyUI directory
+cd ComfyUI
 
-- **狀態機模式**：管理系統運作流程
-- **多執行緒**：相機、AI、Arduino 獨立執行緒
-- **信號槽機制**：元件間通訊使用 PyQt6 信號
-- **模組化設計**：核心、UI、服務分離
+# Install ComfyUI requirements
+pip install -r requirements.txt
 
-## 授權資訊
+# Return to project root
+cd ..
+```
 
-本專案採用 MIT 授權條款
+#### Critical Package Versions
 
-## 聯絡資訊
+The following packages require specific versions for compatibility:
 
-如有問題或建議，請透過 GitHub Issues 回報。
+```text
+# Core Framework
+PyQt6>=6.5.0
+
+# AI/ML Stack
+torch>=2.0.0
+torchvision
+torchaudio
+numpy>=1.24.0
+transformers>=4.37.2
+
+# Computer Vision
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+
+# Audio Processing
+kokoro>=0.9.4
+soundfile>=0.12.1
+librosa>=0.10.0
+pygame>=2.5.0
+
+# System Integration
+psutil>=5.9.0
+pyserial>=3.5.0
+requests>=2.31.0
+```
+
+### Step 5: Directory Structure Setup
+
+The system will automatically create required directories, but you can verify:
+
+```bash
+# Verify directory structure
+ls -la
+
+# Required directories should include:
+# - config/          (configuration files)
+# - fonts/           (font resources)  
+# - webcam-shots/    (camera captures)
+# - weapons_img/     (image assets)
+# - ComfyUI/         (AI generation engine)
+# - core/            (system core modules)
+# - services/        (platform services)
+# - ui/              (user interface)
+```
+
+### Step 6: Font Installation
+
+Download and install the required Chinese font:
+
+```bash
+# Create fonts directory if it doesn't exist
+mkdir -p fonts
+
+# Download Noto Sans CJK TC (example URL - verify current source)
+# Place NotoSansCJKtc-Regular.otf in fonts/ directory
+```
+
+Alternative: System will fallback to "PingFang TC" on macOS if custom font unavailable.
+
+### Step 7: Camera Permissions
+
+macOS requires explicit camera permissions:
+
+1. System will automatically request permissions on first run
+2. If denied, manually enable in System Preferences:
+   - **System Preferences** → **Security & Privacy** → **Camera**
+   - Check box next to **Terminal** and **Python**
+
+### Step 8: Configuration Files
+
+Verify configuration files in `config/` directory:
+
+```bash
+ls config/
+# Should contain:
+# - anim_config.csv
+# - otherssr_config.csv  
+# - period_config.csv
+# - prompt_config.txt
+# - tts_config.txt
+# - voice_mod_config.txt
+# - weapon_config.csv
+```
+
+## Running the System
+
+### Method 1: Using Python Directly
+
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate
+
+# Run main application
+python3 main.py
+```
+
+### Method 2: Using Cursor Terminal
+
+1. Open integrated terminal in Cursor (`Cmd+` ` `)
+2. Ensure you're in project directory
+3. Activate virtual environment: `source venv/bin/activate`
+4. Run: `python3 main.py`
+
+### Method 3: Create Launch Script (Recommended)
+
+Create `start_mac.sh`:
+
+```bash
+#!/bin/bash
+cd "$(dirname "$0")"
+source venv/bin/activate
+python3 main.py
+```
+
+Make executable and run:
+```bash
+chmod +x start_mac.sh
+./start_mac.sh
+```
+
+## Configuration
+
+### System Configuration
+
+Key configuration parameters in `main.py`:
+
+```python
+# Display Settings
+DEBUG_TEXT_SIZE = 22        # Debug text size (12-24)
+CAPTION_TEXT_SIZE = 20      # Caption text size (20-40)  
+LOADING_TEXT_SIZE = 24      # Loading text size (18-32)
+
+# TTS Settings
+TTS_ENABLED = True          # Enable text-to-speech
+TTS_RATE = 160             # Speech rate (50-300)
+TTS_VOLUME = 0.8           # Volume level (0.0-1.0)
+
+# Voice Modification
+VOICE_MOD_ENABLED = True                    # Enable voice modification
+VOICE_MOD_SYNC_FROM_COMFYUI = True         # Sync from ComfyUI settings
+```
+
+### Arduino Setup (Optional)
+
+If using hardware control:
+
+1. **Install Arduino IDE** from [arduino.cc](https://www.arduino.cc)
+2. **Upload sketch**: Load `hardware/defense_system_arduino.ino` 
+3. **Connect hardware**: USB cable, verify port (usually `/dev/cu.usbserial*` or `/dev/cu.usbmodem*`)
+4. **Test connection**: System will auto-detect Arduino on serial ports
+
+## Troubleshooting
+
+### Common Issues
+
+#### Python/Pip Issues
+```bash
+# If python3 command not found
+brew install python3
+
+# If pip installation fails
+python3 -m ensurepip --default-pip
+```
+
+#### PyQt6 Issues
+```bash
+# If PyQt6 installation fails on Apple Silicon
+pip install --upgrade pip setuptools wheel
+pip install PyQt6 --no-binary PyQt6
+```
+
+#### Camera Access Denied
+1. **System Preferences** → **Security & Privacy** → **Camera**
+2. Enable for **Terminal** and **Python**  
+3. Restart application
+
+#### Font Rendering Issues
+- Download NotoSansCJKtc-Regular.otf to `fonts/` directory
+- System will fallback to PingFang TC if font missing
+
+#### Serial Port Issues
+```bash
+# List available serial ports
+python3 -c "import serial.tools.list_ports; print([p.device for p in serial.tools.list_ports.comports()])"
+
+# Grant permissions (if needed)
+sudo chmod 666 /dev/cu.usbserial*
+```
+
+### Performance Optimization
+
+#### For Apple Silicon Macs
+```bash
+# Use optimized PyTorch for M1/M2/M3
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+
+#### Memory Management
+- Close unnecessary applications
+- Monitor system resources in Activity Monitor
+- Consider increasing swap space for large AI models
+
+## Development in Cursor
+
+### Recommended Extensions
+- Python
+- Pylance  
+- GitLens
+- Arduino (if using hardware features)
+
+### Cursor-Specific Features
+- Use `Cmd+K` for AI code completion
+- Use `Cmd+L` for AI chat assistance
+- Use `Cmd+I` for inline AI editing
+
+### Debugging
+```bash
+# Run with debug output
+python3 main.py --debug
+
+# Check system dependencies
+python3 -c "from services.platform_service import PlatformService; print(PlatformService().check_dependencies())"
+```
+
+## System Architecture
+
+### Core Components
+- **main.py**: Application entry point and configuration
+- **core/**: Face detection, camera management, state machine
+- **services/**: Platform services, ComfyUI integration, TTS, voice modification  
+- **ui/**: PyQt6 user interface components
+- **ComfyUI/**: AI image generation subsystem
+
+### Data Flow
+1. **Camera Input** → Face Detection → State Machine
+2. **AI Generation** → ComfyUI → Image Processing  
+3. **Voice Pipeline** → TTS → Voice Modification → Audio Output
+4. **Hardware Control** → Arduino → GPIO Devices
+
+## Support
+
+### System Information
+```bash
+# Get platform info
+python3 -c "from services.platform_service import PlatformService; import pprint; pprint.pprint(PlatformService().get_platform_info())"
+
+# Check dependencies
+python3 -c "from services.platform_service import PlatformService; print(PlatformService().check_dependencies())"
+```
+
+### Logs and Debugging
+- Application logs appear in terminal/Cursor console
+- Camera permissions logged to system console
+- Arduino communication logged to serial monitor
+
+For additional support, ensure all requirements are met and dependencies properly installed before reporting issues.
