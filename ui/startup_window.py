@@ -56,7 +56,7 @@ class StartupWindow(QMainWindow):
         preview_layout = QVBoxLayout(preview_group)
         
         self.preview_label = QLabel()
-        self.preview_label.setFixedSize(600, 720)  # 更大的預覽區域，保持 5:6 比例
+        self.preview_label.setFixedSize(400, 640)  # 5:8 豎屏比例預覽 (1200x1920的縮小版)
         self.preview_label.setStyleSheet("border: 1px solid #ccc;")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setText("載入相機中...")
@@ -231,14 +231,14 @@ class StartupWindow(QMainWindow):
     def update_preview(self):
         """更新預覽顯示"""
         if self.current_frame is not None:
-            # 使用與 main_window 相同的裁切邏輯
+            # 💪 恢復豎屏預覽，匹配主視窗的實際裁切格式
+            # 使用與主視窗相同的裁切邏輯
             cropped_frame = self.crop_frame_to_portrait(self.current_frame)
             
-            # 縮小到預覽尺寸（適應新的預覽區域）
-            preview_width = 600
-            preview_height = 720  # 保持 5:6 比例
+            # 縮放到預覽尺寸（5:8豎屏，適配1200x1920）
+            preview_width = 400
+            preview_height = 640
             
-            # 縮放到預覽尺寸
             resized = cv2.resize(cropped_frame, (preview_width, preview_height), 
                                interpolation=cv2.INTER_LINEAR)
             
@@ -248,27 +248,30 @@ class StartupWindow(QMainWindow):
             self.preview_label.setPixmap(pixmap)
             
     def crop_frame_to_portrait(self, frame):
-        """從 1920x1080 裁切出中間的 1080x1920 區域（與 main_window 相同邏輯）"""
+        """從1920x1080相機畫面裁切出中間的1200x1920豎屏區域（與main_window相同邏輯）"""
         height, width = frame.shape[:2]
         
-        # 確保輸入是 1920x1080
+        # 確保輸入是標準相機格式
         if width != 1920 or height != 1080:
-            # 如果不是，先調整到 1920x1080
             frame = cv2.resize(frame, (1920, 1080), interpolation=cv2.INTER_LINEAR)
-            width, height = 1920, 1080
+            height, width = 1080, 1920
         
-        # 計算裁切區域
-        # 從中間裁切出 1080x1920 的區域
-        crop_x = (1920 - 1080) // 2  # 水平居中裁切
-        crop_y = 0  # 從頂部開始
+        # 💪 適應1200x1920螢幕比例
+        # 目標比例 1200:1920 = 5:8
+        # 從1080高度計算對應的5:8寬度：1080 * 5/8 = 675像素
+        target_crop_width = int(1080 * 5 / 8)  # 675像素
         
-        # 裁切出 1080x1080 的正方形區域
-        square_crop = frame[crop_y:crop_y+1080, crop_x:crop_x+1080]
+        # 從1920x1080裁切出中間的675x1080區域
+        crop_x = (1920 - target_crop_width) // 2  # 居中裁切
+        crop_y = 0
         
-        # 將正方形區域拉伸到 1080x1920
-        portrait_crop = cv2.resize(square_crop, (1080, 1920), interpolation=cv2.INTER_LINEAR)
+        # 裁切出正確比例的區域
+        cropped_frame = frame[crop_y:crop_y + 1080, crop_x:crop_x + target_crop_width]
         
-        return portrait_crop
+        # 縮放到目標尺寸1200x1920（保持正確比例，不會拉伸變形）
+        portrait_frame = cv2.resize(cropped_frame, (1200, 1920), interpolation=cv2.INTER_LINEAR)
+        
+        return portrait_frame
         
     def on_camera_error(self, error):
         """處理相機錯誤"""

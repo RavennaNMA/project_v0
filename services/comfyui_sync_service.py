@@ -95,7 +95,8 @@ class ComfyUISyncService(QObject):
             
             # 在新線程中運行WebSocket
             def run_ws():
-                self.ws.run_forever()
+                if self.ws:
+                    self.ws.run_forever()
             
             ws_thread = threading.Thread(target=run_ws, daemon=True)
             ws_thread.start()
@@ -107,19 +108,12 @@ class ComfyUISyncService(QObject):
         """處理WebSocket消息"""
         try:
             data = json.loads(message)
-            if data.get("type") == "execution_start":
-                # 工作流開始執行
-                pass
-            elif data.get("type") == "executing":
-                # 節點正在執行
-                node_id = data.get("data", {}).get("node")
-                if node_id:
-                    self._check_node_config(node_id)
+            if data.get("type") == "executing":
+                # 節點正在執行，獲取當前工作流程配置
+                self._sync_current_workflow()
             elif data.get("type") == "executed":
-                # 節點執行完成
-                node_data = data.get("data", {})
-                if node_data:
-                    self._process_node_output(node_data)
+                # 節點執行完成，同步配置
+                self._sync_current_workflow()
         except Exception as e:
             print(f"處理WebSocket消息錯誤: {e}")
     
@@ -135,54 +129,95 @@ class ComfyUISyncService(QObject):
         if self.sync_enabled:
             QTimer.singleShot(3000, self._try_connect_websocket)
     
-    def _check_node_config(self, node_id):
-        """檢查特定節點的配置"""
+    def _sync_current_workflow(self):
+        """同步當前工作流程的配置"""
         try:
-            # 獲取當前工作流
-            response = requests.get(f"{self.comfyui_url}/prompt", timeout=2)
+            # 獲取當前活動的工作流程
+            response = requests.get(f"{self.comfyui_url}/api/prompt", timeout=2)
             if response.status_code == 200:
-                # 這裡可以解析工作流來提取語音修改節點的參數
-                pass
-        except Exception as e:
-            print(f"檢查節點配置錯誤: {e}")
-    
-    def _process_node_output(self, node_data):
-        """處理節點輸出數據"""
-        try:
-            node_id = node_data.get("node")
-            output = node_data.get("output", {})
+                prompt_data = response.json()
+                
+                # 檢查是否有執行中或最近的提示
+                if prompt_data.get("exec_info", {}).get("queue_remaining") == 0:
+                    # 獲取歷史記錄中最新的配置
+                    self._get_latest_config_from_history()
             
-            # 檢查是否是語音修改節點
-            if self._is_voice_mod_node(output):
-                config = self._extract_voice_config(output)
-                if config:
-                    self._update_voice_config(config)
         except Exception as e:
-            print(f"處理節點輸出錯誤: {e}")
+            print(f"同步工作流程配置錯誤: {e}")
     
-    def _is_voice_mod_node(self, output):
-        """判斷是否是語音修改節點"""
-        # 檢查輸出是否包含語音修改相關的鍵
-        voice_keys = ['pitch_shift', 'formant_shift', 'reverb_amount', 'voice_profile']
-        return any(key in str(output) for key in voice_keys)
-    
-    def _extract_voice_config(self, output):
-        """從節點輸出中提取語音配置"""
-        config = {}
+    def _get_latest_config_from_history(self):
+        """從歷史記錄中獲取最新配置"""
         try:
-            # 這裡需要根據實際的節點輸出格式來解析
-            # ComfyUI的語音修改節點可能會在輸出中包含參數信息
-            if isinstance(output, dict):
-                # 提取語音修改參數
-                for key in ['pitch_shift', 'formant_shift', 'reverb_amount', 
-                           'echo_delay', 'compression', 'effect_blend', 
-                           'output_volume', 'voice_profile', 'profile_intensity']:
-                    if key in output:
-                        config[key] = output[key]
+            response = requests.get(f"{self.comfyui_url}/history", timeout=2)
+            if response.status_code == 200:
+                history = response.json()
+                
+                # 獲取最新的執行記錄
+                for prompt_id, prompt_info in history.items():
+                    workflow = prompt_info.get("prompt", {})
+                    if workflow:
+                        config = self._extract_tts_config_from_workflow(workflow)
+                        if config:
+                            self._update_voice_config(config)
+                        break  # 只處理最新的
+                        
+        except Exception as e:
+            print(f"獲取歷史配置錯誤: {e}")
+    
+    def _extract_tts_config_from_workflow(self, workflow):
+        """從工作流程中提取 TTS 配置"""
+        config = {}
+        
+        try:
+            for node_id, node_data in workflow.items():
+                class_type = node_data.get("class_type", "")
+                inputs = node_data.get("inputs", {})
+                
+                # 處理 GeekyKokoroTTS 節點
+                if class_type == "GeekyKokoroTTS":
+                    if "voice" in inputs:
+                        config["voice_model"] = inputs["voice"]
+                    if "speed" in inputs:
+                        config["speed"] = float(inputs["speed"])
+                    if "enable_blending" in inputs:
+                        config["enable_blending"] = bool(inputs["enable_blending"])
+                
+                # 處理 GeekyKokoroAdvancedVoice 節點
+                elif class_type == "GeekyKokoroAdvancedVoice":
+                    # 映射 ComfyUI 參數到配置文件參數
+                    param_mapping = {
+                        "effect_blend": "effect_blend",
+                        "output_volume": "output_volume", 
+                        "voice_profile": "voice_profile",
+                        "profile_intensity": "profile_intensity",
+                        "manual_mode": "manual_mode",
+                        "pitch_shift": "pitch_shift",
+                        "formant_shift": "formant_shift",
+                        "reverb_amount": "reverb_amount",
+                        "echo_delay": "echo_delay",
+                        "distortion": "distortion",
+                        "compression": "compression",
+                        "eq_bass": "eq_bass",
+                        "eq_mid": "eq_mid",
+                        "eq_treble": "eq_treble",
+                        "use_gpu": "use_gpu"
+                    }
+                    
+                    for comfy_param, config_param in param_mapping.items():
+                        if comfy_param in inputs:
+                            value = inputs[comfy_param]
+                            # 類型轉換
+                            if isinstance(value, (int, float)):
+                                config[config_param] = float(value)
+                            elif isinstance(value, bool):
+                                config[config_param] = value
+                            elif isinstance(value, str):
+                                config[config_param] = value
             
             return config if config else None
+            
         except Exception as e:
-            print(f"提取語音配置錯誤: {e}")
+            print(f"提取TTS配置錯誤: {e}")
             return None
     
     def _update_voice_config(self, new_config):
@@ -200,41 +235,46 @@ class ComfyUISyncService(QObject):
             # 發射配置更新信號
             self.config_updated.emit(new_config)
             
-            print(f"✅ 語音配置已更新: {new_config}")
+            print(f"✅ 配置已同步: {len(new_config)} 個參數")
             
         except Exception as e:
             print(f"更新語音配置錯誤: {e}")
     
     def _save_comfyui_config(self, config):
-        """保存ComfyUI配置到JSON文件"""
+        """保存到ComfyUI配置文件"""
         try:
+            config_data = {
+                "timestamp": time.time(),
+                "config": config
+            }
+            
             with open(self.comfyui_config_path, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'timestamp': time.time(),
-                    'config': config
-                }, f, indent=2, ensure_ascii=False)
+                json.dump(config_data, f, indent=2, ensure_ascii=False)
+                
         except Exception as e:
             print(f"保存ComfyUI配置錯誤: {e}")
     
     def _update_main_config(self, config):
         """更新主配置文件"""
         try:
-            # 讀取當前配置
+            # 讀取現有配置
             current_config = self._read_main_config()
             
             # 更新配置
-            for key, value in config.items():
-                current_config[key] = value
+            current_config.update(config)
             
             # 寫回配置文件
             self._write_main_config(current_config)
             
+            print(f"📝 主配置文件已更新")
+            
         except Exception as e:
-            print(f"更新主配置文件錯誤: {e}")
+            print(f"更新主配置錯誤: {e}")
     
     def _read_main_config(self):
         """讀取主配置文件"""
         config = {}
+        
         try:
             if self.config_path.exists():
                 with open(self.config_path, 'r', encoding='utf-8') as f:
@@ -244,36 +284,46 @@ class ComfyUISyncService(QObject):
                             key, value = line.split('=', 1)
                             config[key.strip()] = self._parse_config_value(value.strip())
         except Exception as e:
-            print(f"讀取主配置文件錯誤: {e}")
+            print(f"讀取主配置錯誤: {e}")
+            
         return config
     
     def _write_main_config(self, config):
         """寫入主配置文件"""
         try:
-            lines = []
-            lines.append("# 語音修改配置檔案 (由ComfyUI同步更新)")
-            lines.append(f"# 最後更新時間: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            for key, value in config.items():
-                lines.append(f"{key}={value}")
+            # 確保目錄存在
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
             
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(lines) + '\n')
+                f.write("# 語音修改配置檔案\n")
                 
+                for key, value in config.items():
+                    if isinstance(value, bool):
+                        f.write(f"{key}={str(value)}\n")
+                    elif isinstance(value, (int, float)):
+                        f.write(f"{key}={value}\n")
+                    else:
+                        f.write(f"{key}={value}\n")
+                        
         except Exception as e:
-            print(f"寫入主配置文件錯誤: {e}")
+            print(f"寫入主配置錯誤: {e}")
     
     def _parse_config_value(self, value):
         """解析配置值"""
-        # 嘗試轉換為合適的類型
-        if value.lower() in ['true', 'false']:
-            return value.lower() == 'true'
         try:
-            if '.' in value:
+            # 布爾值
+            if value.lower() in ('true', 'false'):
+                return value.lower() == 'true'
+            # 浮點數
+            elif '.' in value:
                 return float(value)
-            else:
+            # 整數
+            elif value.isdigit() or (value.startswith('-') and value[1:].isdigit()):
                 return int(value)
-        except ValueError:
+            # 字符串
+            else:
+                return value
+        except:
             return value
     
     def get_current_config(self):
@@ -281,11 +331,11 @@ class ComfyUISyncService(QObject):
         return self.last_known_config.copy()
     
     def is_comfyui_connected(self):
-        """檢查ComfyUI是否已連接"""
+        """檢查ComfyUI是否連接"""
         return self.is_connected
     
     def manually_sync_config(self, config):
-        """手動同步配置（用於測試）"""
+        """手動同步配置"""
         self._update_voice_config(config)
     
     def get_comfyui_url(self):

@@ -154,6 +154,13 @@ class KokoroTTSWorker(QThread):
         if text.strip():
             self.text_queue.put(text.strip())
     
+    def add_text_with_original_length(self, filtered_text, original_length):
+        """添加過濾後的文字到佇列，同時記錄原始長度以修復進度計算"""
+        if filtered_text and filtered_text.strip():
+            # 在文字前添加特殊標記來傳遞原始長度信息
+            text_with_length = f"ORIGINAL_LENGTH:{original_length}|{filtered_text.strip()}"
+            self.text_queue.put(text_with_length)
+    
     def clear_queue(self):
         """清空語音合成佇列"""
         try:
@@ -180,9 +187,25 @@ class KokoroTTSWorker(QThread):
                 if not text or not self.running:
                     continue
                 
+                # 💪 修復進度計算：解析原始長度信息
+                original_text_length = None
+                if text.startswith("ORIGINAL_LENGTH:"):
+                    # 解析格式：ORIGINAL_LENGTH:123|實際文字
+                    parts = text.split("|", 1)
+                    if len(parts) == 2:
+                        length_part = parts[0].replace("ORIGINAL_LENGTH:", "")
+                        try:
+                            original_text_length = int(length_part)
+                            text = parts[1]  # 使用過濾後的文字進行TTS
+                        except ValueError:
+                            pass  # 解析失敗，使用原始邏輯
+                
                 self.current_text = text
-                self.text_length = len(text)
+                # 使用原始文字長度作為進度基準，確保字幕同步
+                self.text_length = original_text_length if original_text_length else len(text)
                 self.current_position = 0
+                
+                print(f"🎯 TTS進度基準: 實際文字長度={len(text)}, 進度計算基準={self.text_length}")
                 
                 # 開始語音合成
                 self.tts_started.emit()
@@ -193,6 +216,12 @@ class KokoroTTSWorker(QThread):
                     self._synthesize_realtime(text)
                 else:
                     self._synthesize_with_kokoro(text)
+                
+                # 確保最終進度達到100%
+                if self.current_position < self.text_length:
+                    self.current_position = self.text_length
+                    self.tts_progress.emit(self.current_position, self.text_length)
+                    print(f"🔧 TTS完成前修正進度: {self.current_position}/{self.text_length} (100%)")
                 
                 # 語音結束
                 self.is_speaking = False
@@ -227,7 +256,7 @@ class KokoroTTSWorker(QThread):
                 generator = self.pipeline(
                     chunk, 
                     voice=self.voice, 
-                    speed=self.speed
+                    speed=float(self.speed)
                 )
                 
                 # 計算這個片段的起始字符位置
@@ -242,11 +271,33 @@ class KokoroTTSWorker(QThread):
                     # 播放當前片段，並實時更新進度
                     self._play_audio_with_progress(audio, chunk_start_pos, chunk_length)
                 
-                # 片段播放完畢，更新到片段結束位置
+                # 片段播放完畢，強制更新到片段結束位置
                 cumulative_chars += len(chunk)
-                progress = min(cumulative_chars, self.text_length)
-                self.current_position = progress
-                self.tts_progress.emit(progress, self.text_length)
+                
+                # 💪 修復進度計算：按比例映射到原始文字長度
+                if len(text) > 0:  # 避免除零
+                    # 計算在過濾後文字中的進度比例
+                    filtered_progress_ratio = min(cumulative_chars / len(text), 1.0)
+                    # 映射到原始文字長度
+                    progress = int(filtered_progress_ratio * self.text_length)
+                else:
+                    progress = self.text_length
+                
+                # 確保進度確實前進到片段結束
+                if progress > self.current_position:
+                    self.current_position = progress
+                    self.tts_progress.emit(progress, self.text_length)
+                    print(f"✅ 片段完成: {chunk[:20]}... 進度: {progress}/{self.text_length} ({filtered_progress_ratio*100:.1f}%)")
+                
+                # 💪 強制確保字幕完成顯示 - 多次發送完成信號
+                for _ in range(3):  # 連續發送3次確保字幕收到
+                    self.tts_progress.emit(progress, self.text_length)
+                    time.sleep(0.02)  # 20ms間隔
+                
+                # 片段間停頓，讓字幕有充分時間完成顯示
+                time.sleep(0.15)  # 增加到150ms，確保字幕完成
+                
+                print(f"⏸️ 片段間隔完成，準備下一片段")
                 
                 # 檢查是否需要停止
                 if not self.running or not self.is_speaking:
@@ -273,7 +324,7 @@ class KokoroTTSWorker(QThread):
                 generator = self.pipeline(
                     sentence, 
                     voice=self.voice, 
-                    speed=self.speed
+                    speed=float(self.speed)
                 )
                 
                 for gs, ps, audio in generator:
@@ -581,55 +632,34 @@ class KokoroTTSWorker(QThread):
             pygame.mixer.quit()
 
     def _play_audio_with_progress(self, audio, chunk_start_pos, chunk_length):
-        """播放音頻並實時更新字符進度"""
+        """播放音訊並實時更新進度 - 優化版本"""
         if not PYGAME_AVAILABLE:
             return
             
         try:
-            # 確保mixer已初始化
-            if not pygame.mixer.get_init():
-                pygame.mixer.init(frequency=24000, size=-16, channels=2, buffer=256)
-                
-            # 停止前一個音訊（如果還在播放）
+            # 停止前一個音訊
             if pygame.mixer.get_busy():
                 pygame.mixer.stop()
-                # 短暫等待確保停止
-                time.sleep(0.02)  # 減少等待時間
+                time.sleep(0.02)
             
-            # 將 PyTorch tensor 轉換為 numpy 數組
+            # 轉換音訊格式
             import numpy as np
             if hasattr(audio, 'numpy'):
                 audio_np = audio.numpy()
             else:
                 audio_np = audio
             
-            # 確保是一維數組
             if audio_np.ndim > 1:
                 audio_np = audio_np.flatten()
             
-            # 🎛️ 應用語音修改效果
-            if self.voice_mod_service and self.voice_mod_enabled:
-                try:
-                    audio_np = self.voice_mod_service.process_audio(audio_np)
-                    print(f"✨ 已應用語音修改效果")
-                except Exception as e:
-                    print(f"⚠️ 語音修改處理失敗: {e}")
-            
-            # 轉換為 16 位整數格式
             audio_int16 = (audio_np * 32767).astype(np.int16)
-            
-            # 轉換為立體聲格式 (pygame 需要)
             stereo_audio = np.column_stack((audio_int16, audio_int16))
             
-            # 使用 pygame 播放
             sound = pygame.sndarray.make_sound(stereo_audio)
             
-            # 更精確的音頻時長計算
-            sample_rate = 24000  # Kokoro TTS 的采樣率
-            actual_audio_duration = len(audio_np) / sample_rate
-            
-            # 根據速度調整估算時長
-            estimated_duration = actual_audio_duration / self.speed
+            # 計算音訊時長
+            sample_rate = 24000  # Kokoro TTS 採樣率
+            estimated_duration = len(audio_np) / sample_rate
             
             # 開始播放
             play_start_time = time.time()
@@ -637,62 +667,88 @@ class KokoroTTSWorker(QThread):
             
             print(f"🎵 播放片段: 位置{chunk_start_pos}-{chunk_start_pos + chunk_length}, 時長{estimated_duration:.2f}s")
             
-            # 更頻繁的實時更新進度，確保流暢同步
-            update_interval = 0.02  # 20ms 更新頻率，比字幕打字更快
-            last_char_pos = chunk_start_pos
+            # 高頻率實時進度更新 - 修復每句結尾延遲
+            update_interval = 0.016  # 60fps 更新頻率，更流暢
+            last_update_time = play_start_time
             
             while pygame.mixer.get_busy():
                 if not self.running or not self.is_speaking:
                     pygame.mixer.stop()
                     break
                 
-                # 計算播放進度
-                elapsed_time = time.time() - play_start_time
+                current_time = time.time()
+                elapsed_time = current_time - play_start_time
                 
-                # 使用更保守的進度計算，避免超前
+                # 精確的進度計算 - 無提前量，同步更準確
                 if estimated_duration > 0:
                     progress_ratio = min(elapsed_time / estimated_duration, 1.0)
                     
-                    # ✨ 關鍵優化：當播放進度超過 75% 時，直接跳到片段結尾
-                    # 這樣句號前的字符會提前顯示，不用等下一個片段
-                    if progress_ratio >= 0.75:
-                        progress_ratio = 1.0
-                        print(f"⚡ 提前完成片段顯示：進度 {elapsed_time/estimated_duration:.2f} >= 0.75，直接跳到結尾")
-                    else:
-                        # 正常播放時添加小幅度的提前量，讓字幕稍微領先語音
-                        progress_ratio = min(progress_ratio * 1.15, 1.0)
+                    # 接近結尾時更積極地推進（最後10%時稍微加速）
+                    if progress_ratio > 0.9:
+                        progress_ratio = min(progress_ratio * 1.05, 1.0)
                 else:
                     progress_ratio = 1.0
                 
-                # 計算當前字符位置，使用更平滑的計算
-                target_char_pos = chunk_start_pos + int(progress_ratio * chunk_length)
-                target_char_pos = min(target_char_pos, chunk_start_pos + chunk_length)
+                # 計算當前字符位置（在過濾後文字中）
+                filtered_char_pos = chunk_start_pos + int(progress_ratio * chunk_length)
+                filtered_char_pos = min(filtered_char_pos, chunk_start_pos + chunk_length)
                 
-                # 只在位置確實改變時才發送更新，避免重複
-                if target_char_pos != last_char_pos:
-                    self.tts_progress.emit(target_char_pos, self.text_length)
-                    last_char_pos = target_char_pos
-                    
-                    # 輸出調試信息（僅在位置變化時）
-                    print(f"🎯 實時進度: {target_char_pos}/{self.text_length} ({progress_ratio:.2f}, {elapsed_time:.2f}s)")
+                # 💪 修復進度計算：將過濾後文字位置映射到原始文字長度
+                if len(self.current_text) > 0:  # 避免除零
+                    # 計算在過濾後文字中的進度比例
+                    filtered_progress_ratio = filtered_char_pos / len(self.current_text)
+                    # 映射到原始文字長度
+                    target_char_pos = int(filtered_progress_ratio * self.text_length)
+                else:
+                    target_char_pos = self.text_length
                 
-                # 如果已經到達片段結尾，可以提前結束更新循環
-                if progress_ratio >= 1.0 and target_char_pos >= chunk_start_pos + chunk_length:
-                    print(f"🏁 片段進度完成，字符已到達結尾位置 {target_char_pos}")
+                # 確保進度只前進，不後退
+                if target_char_pos > self.current_position:
+                    self.current_position = target_char_pos
+                    self.tts_progress.emit(self.current_position, self.text_length)
+                    last_update_time = current_time
+                
+                # 檢查是否長時間沒有進度更新（片段接近結束但還沒完成）
+                time_since_last_update = current_time - last_update_time
+                if (time_since_last_update > 0.3 and  # 300ms沒更新
+                    progress_ratio > 0.85 and  # 進度超過85%
+                    self.current_position < chunk_start_pos + chunk_length):  # 還沒完成
+                    # 強制完成這個片段
+                    self.current_position = chunk_start_pos + chunk_length
+                    self.tts_progress.emit(self.current_position, self.text_length)
+                    print(f"🔧 強制完成片段: {chunk_start_pos}-{chunk_start_pos + chunk_length}")
                     break
                 
                 time.sleep(update_interval)
+            
+            # 💪 積極確保片段完全結束 - 修復最後幾個字符延遲
+            filtered_final_pos = chunk_start_pos + chunk_length
+            
+            # 💪 修復進度計算：將過濾後文字位置映射到原始文字長度
+            if len(self.current_text) > 0:  # 避免除零
+                # 計算在過濾後文字中的進度比例
+                filtered_progress_ratio = filtered_final_pos / len(self.current_text)
+                # 映射到原始文字長度
+                final_pos = int(filtered_progress_ratio * self.text_length)
+            else:
+                final_pos = self.text_length
+            
+            if final_pos > self.current_position:
+                self.current_position = final_pos
                 
-            # 確保片段結束時到達正確位置
-            final_pos = chunk_start_pos + chunk_length
-            if last_char_pos < final_pos:
-                self.tts_progress.emit(final_pos, self.text_length)
-                print(f"🏁 片段完成: 最終位置 {final_pos}")
+                # 立即發送片段完成信號 - 多次確保收到
+                for i in range(4):  # 發送4次確保字幕收到
+                    self.tts_progress.emit(self.current_position, self.text_length)
+                    if i < 3:  # 前3次有間隔
+                        time.sleep(0.01)
+                        
+                print(f"📍 片段結束進度修正: {self.current_position}/{self.text_length}")
+            
+            # 額外等待確保播放完全停止和字幕處理
+            time.sleep(0.08)  # 增加到80ms確保字幕有時間處理
                 
         except Exception as e:
-            print(f"實時進度音訊播放錯誤: {e}")
-            # 回退到普通播放
-            self._play_audio_complete(audio)
+            print(f"音訊播放錯誤: {e}")
 
 
 class TTSService(QObject):
@@ -743,7 +799,8 @@ class TTSService(QObject):
         # 過濾並處理文字
         filtered_text = self.filter_english_text(text)
         if filtered_text:
-            self.worker.add_text(filtered_text)
+            # 💪 修復進度計算：同時傳遞原始文字長度和過濾後文字
+            self.worker.add_text_with_original_length(filtered_text, len(text))
     
     def filter_english_text(self, text):
         """過濾和處理英文文字"""

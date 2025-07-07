@@ -1,23 +1,16 @@
-根據人物特徵分析戰場生存策略，發揮創意想像其面臨的威脅和應對方案。
-
+根據以下角色資訊，構思其在戰場上的創意生存策略。
 人物描述: {image_description}
 可選武器: {weapon_list}
 
 分析人物的身材、穿著、裝備、姿態，推測戰場弱點並設計創意生存策略。要包含：具體威脅類型、弱點分析、武器選擇理由、詳細使用策略。
+內容要具敘事感，邏輯連貫，不可空泛。
 
-【重要格式規則】：
-1. Caption_TC 只能包含繁體中文，絕對不能有任何英文字母
-2. Caption_EN 只能包含英文，絕對不能有任何中文字符  
-3. 兩個Caption都不能包含武器編號數字
-4. 發揮創意詳述策略：Caption_TC 120字內，Caption_EN 120字內
-5. 必須完全按照以下格式輸出，不能有任何偏差
+請嚴格遵守以下格式，每段不超過120字：
+Caption_TC: [繁體中文，具體描述角色弱點、威脅與創意對應策略，不能含英文字或數字]
+Caption_EN: [English only, describing character’s traits, threat, weapon use, and imaginative strategy. No Chinese or numbers.]
+Weapons: [三項武器代號，例如 01, 02, 03]
 
-【標準輸出格式】：
-Caption_TC: [純繁體中文創意分析，詳述威脅、弱點與策略，120字以內]
-Caption_EN: [Pure English creative analysis detailing threats, weaknesses and strategies, within 120 words]
-Weapons: [01, 02, 03]
-
-【創意範例】：
-Caption_TC: 此人身高突出易成空襲目標，藍色上衣如信號燈般醒目。敵軍無人機群來襲時，應先用高壓電磁模組製造強烈電磁脈衝，癱瘓機群導航系統使其迷失方向，再以狙擊電磁炮精準狙殺漏網機體。當敵軍步兵接近時，運用身高優勢揮舞鐵鎚進行致命打擊，長臂展能產生更大破壞力。
-Caption_EN: This tall figure becomes prime target for aerial strikes, blue clothing acting like beacon. When enemy drone swarms attack, deploy high-pressure electromagnetic module creating powerful EMP bursts to disable navigation systems and disorient the fleet, then use sniper electromagnetic cannon for precise elimination of remaining units. Against approaching infantry, leverage height advantage wielding hammer for devastating strikes, extended reach generating maximum destructive force.
-Weapons: [03, 05, 01]
+範例：
+Caption_TC: 此人因身形矮胖、移動緩慢，極易被軍犬追擊。面對逼近獵犬，先用閃光燈讓牠短暫目盲，再低頭用安全帽反彈其撲擊。穩定重心後，拔出散彈電磁炮，對準地面開火震飛敵犬，自己卻毫髮無傷地穩穩蹲著。
+Caption_EN: Short and round, he’s easily chased by war dogs. When pursued, he flashes a blinding light, ducks low and ricochets the dog off his helmet. With low center of gravity, he calmly pulls out a scatter EM cannon, blasting the ground to launch the hound skyward—while staying perfectly still.
+Weapons: [06, 02, 08]

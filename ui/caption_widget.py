@@ -10,11 +10,11 @@ import time
 
 
 class CaptionWidget(QWidget):
-    """字幕顯示元件"""
+    """字幕顯示元件 - 優化的TTS同步版本"""
     
     typing_complete = pyqtSignal()
-    tc_typing_complete = pyqtSignal()  # TC打字完成信号
-    en_typing_complete = pyqtSignal()  # EN打字完成信号
+    tc_typing_complete = pyqtSignal()
+    en_typing_complete = pyqtSignal()
     
     def __init__(self, parent=None, scale_factor=1.0, font_size=28):
         super().__init__(parent)
@@ -28,12 +28,21 @@ class CaptionWidget(QWidget):
         self.is_bilingual_mode = False
         self.tc_text = ""
         self.en_text = ""
-        self.current_phase = ""  # "tc", "en", "simultaneous"
-        self.tc_lines_cache = []
+        self.tc_current_text = ""
+        self.en_current_text = ""
+        self.tc_index = 0
+        self.en_index = 0
+        self._tc_completed = False
+        self._en_completed = False
         
-        # 打字機效果計時器
-        self.typing_timer = QTimer()
-        self.typing_timer.timeout.connect(self.type_next_character)
+        # 統一的顯示計時器 - 簡化邏輯
+        self.display_timer = QTimer()
+        self.display_timer.timeout.connect(self._update_display)
+        
+        # TTS同步相關
+        self.tts_sync_enabled = False
+        self.tts_target_position = 0
+        self.last_tts_update_time = 0
         
         # 設定透明背景
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -47,584 +56,397 @@ class CaptionWidget(QWidget):
         self.padding = 20
         self.line_spacing = 10
         
-        # TTS同步功能
-        self.tts_sync_enabled = False
-        self.tts_text = ""
-        self.tts_start_time = None
-        self.char_timings = []  # 每個字符的預計時間點
-        self.target_tts_position = 0  # TTS目標位置
+        # 字符數量限制（統一中英文）- 可從配置載入
+        self.max_chars_per_line = 65  # 每行最大字符數
+        self.chinese_char_weight = 1.8  # 中文字符權重（相對於英文）
+        
+        # 嘗試從配置文件載入設定
+        self._load_wrapping_config()
         
         # 隱藏控制項
         self.hide()
         
-    def show_caption(self, text, typing_speed=50):
-        """顯示單語字幕"""
+    def _load_wrapping_config(self):
+        """從配置文件載入換行設定"""
+        try:
+            from utils.config_loader import ConfigLoader
+            config_loader = ConfigLoader()
+            config = config_loader.load_period_config()
+            
+            # 載入字符限制設定
+            self.max_chars_per_line = config.get('caption_max_chars_per_line', 40)
+            self.chinese_char_weight = config.get('caption_chinese_char_weight', 1.8)
+            
+            print(f"載入字幕換行設定: 每行{self.max_chars_per_line}字符, 中文權重{self.chinese_char_weight}")
+        except Exception as e:
+            print(f"載入換行配置失敗: {e}, 使用預設值")
+        
+    def show_caption(self, text, typing_speed=80):
+        """顯示單語字幕 - 優化版本"""
         self.full_text = text
         self.current_text = ""
         self.current_index = 0
         self.is_showing = True
         self.is_bilingual_mode = False
+        self._typing_completed = False  # 重置完成標誌
         
         self.show()
         
-        # 如果啟用TTS同步，不使用常規計時器，完全依賴TTS進度
+        # 使用統一的顯示機制
         if not self.tts_sync_enabled:
-            typing_speed_int = int(typing_speed)
-            self.typing_timer.start(typing_speed_int)
-            print(f"啟動常規打字計時器，速度: {typing_speed_int}ms")
+            # 調整打字速度，更平滑
+            interval = max(int(typing_speed), 30)  # 最少30ms間隔
+            self.display_timer.start(interval)
+            print(f"啟動字幕顯示計時器，間隔: {interval}ms")
         else:
-            print(f"TTS同步模式：等待TTS進度驅動逐字打字")
+            # TTS同步模式使用固定的快速更新頻率
+            self.display_timer.start(16)  # 60fps 更新頻率
+            print(f"TTS同步模式：使用60fps更新頻率")
         
         self.update()
         
-    def show_bilingual_caption(self, tc_text, en_text, typing_speed=50):
-        """顯示雙語字幕 - 同時打字版本"""
+    def show_bilingual_caption(self, tc_text, en_text, typing_speed=80):
+        """顯示雙語字幕 - 優化版本"""
         self.is_bilingual_mode = True
         self.tc_text = tc_text
         self.en_text = en_text
-        self.current_phase = "simultaneous"  # 同時打字模式
         
-        # 重置打字狀態
+        # 重置狀態
         self.tc_current_text = ""
         self.en_current_text = ""
         self.tc_index = 0
         self.en_index = 0
         self._tc_completed = False
         self._en_completed = False
+        self._typing_completed = False  # 重置完成標誌
         self.is_showing = True
-        
-        # 清空缓存
-        self.tc_lines_cache = []
         
         self.show()
         
-        # 如果啟用TTS同步，不使用常規計時器，完全依賴TTS進度
+        # 使用統一的顯示機制
         if not self.tts_sync_enabled:
-            typing_speed_int = int(typing_speed)
-            self.typing_timer.start(typing_speed_int)
-            print(f"雙語模式：啟動常規打字計時器，速度: {typing_speed_int}ms")
+            interval = max(int(typing_speed), 30)  # 最少30ms間隔
+            self.display_timer.start(interval)
+            print(f"雙語字幕顯示計時器，間隔: {interval}ms")
         else:
-            print(f"雙語模式TTS同步：等待TTS進度驅動逐字打字")
+            self.display_timer.start(16)  # 60fps 更新頻率
+            print(f"雙語TTS同步模式：使用60fps更新頻率")
         
         self.update()
         
     def enable_tts_sync(self, tts_text, tts_rate_wpm=140):
-        """啟用TTS實時進度同步模式 - 逐字打字效果"""
+        """啟用TTS同步模式 - 簡化版本"""
         self.tts_sync_enabled = True
         self.tts_text = tts_text
-        self.tts_text_length = len(tts_text)
-        self.current_tts_position = 0
-        self.last_valid_tts_position = 0  # 記錄最後一個有效進度
-        self.target_tts_position = 0  # 目標TTS位置
+        self.tts_target_position = 0
+        self.last_tts_update_time = time.time()
         
-        # 停止原來的打字計時器
-        if self.typing_timer.isActive():
-            self.typing_timer.stop()
-            
-        # 啟動更快的逐字打字計時器，與TTS進度更新頻率匹配
-        self.tts_typing_timer = QTimer()
-        self.tts_typing_timer.timeout.connect(self._gradual_tts_typing)
-        self.tts_typing_timer.start(20)  # 25ms間隔，比TTS更新更快
-        
-        print(f"TTS逐字同步啟用: 字符數={len(tts_text)}, 25ms快速打字跟隨TTS進度")
+        print(f"TTS同步啟用: 文字長度={len(tts_text)}")
         
     def update_tts_progress(self, current_pos, total_len):
-        """更新TTS進度並同步字幕顯示 - 實時逐字同步"""
+        """更新TTS進度 - 修復句子間隔字符延遲"""
         if not self.tts_sync_enabled:
             return
             
-        # 安全檢查：過濾異常的TTS進度值
-        if current_pos < 0 or current_pos > total_len * 2:
-            print(f"DEBUG: 過濾異常TTS進度: {current_pos}/{total_len}")
+        # 過濾異常進度值
+        if current_pos < 0 or current_pos > total_len * 1.5:
             return
             
-        # 確保進度只能前進
-        if current_pos >= self.last_valid_tts_position or current_pos < 10:
-            self.last_valid_tts_position = current_pos
-        else:
-            current_pos = self.last_valid_tts_position
+        # 立即更新進度，不做延遲
+        if current_pos >= self.tts_target_position:
+            old_position = self.tts_target_position
+            self.tts_target_position = current_pos
+            self.last_tts_update_time = time.time()
             
-        # 更新目標TTS位置，讓打字計時器逐步追趕
-        self.target_tts_position = current_pos
-        
-        print(f"📡 TTS進度更新: {current_pos}/{total_len} - 設定字幕目標位置")
+            # 💪 強化片段完成檢測
+            progress_jump = current_pos - old_position
             
-    def update_tts_word_progress(self, current_chunk):
-        """更新當前播放的文字片段"""
-        if not self.tts_sync_enabled:
+            # 條件1: 大跳躍（明顯的片段結束）
+            if progress_jump > 5:
+                print(f"🔄 檢測到進度跳躍: {old_position}→{current_pos} (+{progress_jump})")
+                self._force_complete_to_position(current_pos)
+                
+            # 條件2: 重複的相同進度值（TTS發送多次確保字幕收到）
+            elif current_pos == old_position and current_pos > 0:
+                print(f"🔄 收到重複進度確認: {current_pos}")
+                self._force_complete_to_position(current_pos)
+                
+            # 條件3: 正常進度更新也立即處理
+            else:
+                self._update_tts_sync_display()
+            
+        # 調試信息 - 更頻繁顯示，便於調試
+        if current_pos % 3 == 0 or current_pos == total_len:
+            progress = (current_pos / total_len * 100) if total_len > 0 else 0
+            print(f"📊 TTS進度: {current_pos}/{total_len} ({progress:.1f}%)")
+            
+    def _force_complete_to_position(self, target_pos):
+        """強制完成字幕顯示到指定位置 - 解決句子間隔延遲"""
+        if not self.is_showing:
             return
             
-        # 發出調試信息
-        print(f"字幕同步到語音片段: '{current_chunk}'")
+        print(f"💪 強制完成字幕到位置: {target_pos}")
         
-        # 可以在這裡添加更精細的同步邏輯
-        # 例如高亮當前播放的文字片段
-        self.current_speaking_chunk = current_chunk
-        
-        # 強制重繪以顯示當前片段
-        self.update()
-            
-    def _sync_single_display_with_progress(self, tts_position):
-        """根據TTS進度同步單語顯示"""
-        if hasattr(self, 'full_text') and self.full_text:
-            # 確保位置不超出文本長度
-            target_index = min(tts_position, len(self.full_text))
-            
-            if target_index > self.current_index:
-                self.current_text = self.full_text[:target_index]
-                self.current_index = target_index
-                
-                # 調試信息
-                print(f"單語字幕同步更新: 顯示到第 {target_index} 字符，內容: '{self.current_text[-20:]}'")
-                
-                # 強制更新顯示
-                self.update()
-                
-                # 不要在這裡觸發完成信號，等待真正的TTS完成
+        if self.is_bilingual_mode:
+            # 雙語模式強制完成
+            if hasattr(self, 'en_text') and self.en_text:
+                en_target = min(target_pos, len(self.en_text))
+                if en_target > self.en_index:
+                    self.en_index = en_target
+                    self.en_current_text = self.en_text[:self.en_index]
+                    print(f"  英文強制到: {self.en_index}/{len(self.en_text)}")
                     
-    def _sync_bilingual_display_with_progress(self, tts_position):
-        """根據TTS進度同步雙語顯示"""
-        if not (hasattr(self, 'en_text') and hasattr(self, 'tc_text')):
-            return
+                    if self.en_index >= len(self.en_text) and not self._en_completed:
+                        self._en_completed = True
+                        self.en_typing_complete.emit()
             
-        # 計算英文進度 (TTS基於英文文本)
-        en_target_index = min(tts_position, len(self.en_text))
-        
-        # 更新英文字幕
-        if en_target_index > self.en_index:
-            self.en_current_text = self.en_text[:en_target_index]
-            self.en_index = en_target_index
-            
-            # 調試信息
-            print(f"英文字幕同步更新: 顯示到第 {en_target_index} 字符，內容: '{self.en_current_text[-20:]}'")
-            
-            # 不要在這裡觸發完成信號，等待真正的TTS完成
-        
-        # 根據英文進度計算中文進度
-        en_progress = self.en_index / len(self.en_text) if len(self.en_text) > 0 else 0
-        tc_target_index = int(en_progress * len(self.tc_text))
-        
-        # 更新中文字幕
-        if tc_target_index > self.tc_index:
-            self.tc_current_text = self.tc_text[:tc_target_index]
-            self.tc_index = tc_target_index
-            
-            # 調試信息
-            print(f"中文字幕同步更新: 顯示到第 {tc_target_index} 字符，內容: '{self.tc_current_text[-20:]}'")
-            
-            # 不要在這裡觸發完成信號，等待真正的TTS完成
-        
-        # 強制更新顯示
-        self.update()
-        
-        # 不在這裡檢查完成，等待真正的TTS完成信號
-        
-    def _sync_single_display_with_progress_immediate(self, tts_position):
-        """立即根據TTS進度同步單語顯示 - 真正實時"""
-        if hasattr(self, 'full_text') and self.full_text:
-            # 直接設置到TTS進度位置，實現真正同步
-            target_index = min(tts_position, len(self.full_text))
-            
-            # 確保至少顯示第一個字符，即使TTS進度為0
-            if target_index == 0 and tts_position > 0:
-                target_index = 1
-            
-            if target_index != self.current_index:
-                self.current_index = target_index
-                self.current_text = self.full_text[:self.current_index]
+            if hasattr(self, 'tc_text') and self.tc_text:
+                # 中文按比例強制完成
+                en_progress = self.en_index / len(self.en_text) if len(self.en_text) > 0 else 0
+                tc_target = int(en_progress * len(self.tc_text))
                 
-                # 顯示當前字符
-                if target_index > 0:
-                    current_char = self.full_text[target_index-1] if target_index <= len(self.full_text) else ''
-                    display_char = '[SPACE]' if current_char == ' ' else current_char
-                    print(f"🎯 實時同步: 第{target_index}字 -> '{display_char}' (TTS: {tts_position})")
-                
-                self.update()
-                
-    def _sync_bilingual_display_with_progress_immediate(self, tts_position):
-        """立即根據TTS進度同步雙語顯示 - 真正實時"""
-        if not (hasattr(self, 'en_text') and hasattr(self, 'tc_text')):
-            return
-            
-        # 英文直接同步到TTS位置
-        en_target_index = min(tts_position, len(self.en_text))
-        
-        if en_target_index != self.en_index:
-            self.en_index = en_target_index
-            self.en_current_text = self.en_text[:self.en_index]
-            
-            if en_target_index > 0:
-                current_char = self.en_text[en_target_index-1] if en_target_index <= len(self.en_text) else ''
-                display_char = '[SPACE]' if current_char == ' ' else current_char
-                print(f"🎯 英文實時同步: 第{en_target_index}字 -> '{display_char}' (TTS: {tts_position})")
-            
-        # 中文按比例同步
-        en_progress = self.en_index / len(self.en_text) if len(self.en_text) > 0 else 0
-        tc_target_index = int(en_progress * len(self.tc_text))
-        
-        if tc_target_index != self.tc_index:
-            self.tc_index = tc_target_index
-            self.tc_current_text = self.tc_text[:self.tc_index]
-            
-            if tc_target_index > 0:
-                current_char = self.tc_text[tc_target_index-1] if tc_target_index <= len(self.tc_text) else ''
-                print(f"🎯 中文實時同步: 第{tc_target_index}字 -> '{current_char}' (進度: {en_progress:.2f})")
-        
-        self.update()
-        
-    def _gradual_tts_typing(self):
-        """逐字打字追趕TTS進度 - 真正的打字效果"""
-        if not self.tts_sync_enabled:
-            return
-            
-        if self.is_bilingual_mode:
-            self._gradual_bilingual_typing()
+                if tc_target > self.tc_index:
+                    self.tc_index = tc_target
+                    self.tc_current_text = self.tc_text[:self.tc_index]
+                    print(f"  中文強制到: {self.tc_index}/{len(self.tc_text)}")
+                    
+                    if self.tc_index >= len(self.tc_text) and not self._tc_completed:
+                        self._tc_completed = True
+                        self.tc_typing_complete.emit()
         else:
-            self._gradual_single_typing()
-            
-    def _gradual_single_typing(self):
-        """單語逐字追趕TTS進度"""
-        if not hasattr(self, 'full_text') or not self.full_text:
-            return
-            
-        # 計算需要追趕的距離
-        distance = self.target_tts_position - self.current_index
+            # 單語模式強制完成
+            if hasattr(self, 'full_text') and self.full_text:
+                target_index = min(target_pos, len(self.full_text))
+                if target_index > self.current_index:
+                    self.current_index = target_index
+                    self.current_text = self.full_text[:self.current_index]
+                    print(f"  單語強制到: {self.current_index}/{len(self.full_text)}")
+                    
+                    if self.current_index >= len(self.full_text):
+                        if not hasattr(self, '_typing_completed') or not self._typing_completed:
+                            self._typing_completed = True
+                            self.typing_complete.emit()
         
-        # 智能追趕：如果落後太多，一次打多個字；如果接近，正常打字
-        if distance > 0:
-            if distance > 10:
-                # 落後很多時，快速追趕（一次打2-3個字）
-                step = min(3, distance, len(self.full_text) - self.current_index)
-            elif distance > 5:
-                # 中等落後，稍快打字（一次打2個字）
-                step = min(2, distance, len(self.full_text) - self.current_index)
-            else:
-                # 接近同步，正常逐字打字
-                step = 1
-            
-            if self.current_index < len(self.full_text):
-                self.current_index += step
-                self.current_text = self.full_text[:self.current_index]
-                
-                # 顯示當前打字字符
-                if step == 1:
-                    current_char = self.full_text[self.current_index-1] if self.current_index > 0 else ''
-                    display_char = '[SPACE]' if current_char == ' ' else current_char
-                    print(f"⌨️ 逐字打字: 第{self.current_index}字 -> '{display_char}' (目標:{self.target_tts_position})")
-                else:
-                    print(f"⚡ 快速追趕: +{step}字 -> 第{self.current_index}字 (目標:{self.target_tts_position}, 距離:{distance})")
-                
-                self.update()
-            
-    def _gradual_bilingual_typing(self):
-        """雙語逐字追趕TTS進度"""
-        if not (hasattr(self, 'en_text') and hasattr(self, 'tc_text')):
-            return
-            
-        # 計算英文需要追趕的距離
-        en_distance = self.target_tts_position - self.en_index
-        
-        # 英文智能追趕TTS進度
-        if en_distance > 0 and self.en_index < len(self.en_text):
-            if en_distance > 10:
-                # 落後很多時，快速追趕
-                en_step = min(3, en_distance, len(self.en_text) - self.en_index)
-            elif en_distance > 5:
-                # 中等落後，稍快打字
-                en_step = min(2, en_distance, len(self.en_text) - self.en_index)
-            else:
-                # 接近同步，正常逐字打字
-                en_step = 1
-            
-            self.en_index += en_step
-            self.en_current_text = self.en_text[:self.en_index]
-            
-            if en_step == 1:
-                current_char = self.en_text[self.en_index-1] if self.en_index > 0 else ''
-                display_char = '[SPACE]' if current_char == ' ' else current_char
-                print(f"⌨️ 英文逐字: 第{self.en_index}字 -> '{display_char}' (目標:{self.target_tts_position})")
-            else:
-                print(f"⚡ 英文快速追趕: +{en_step}字 -> 第{self.en_index}字 (距離:{en_distance})")
-            
-        # 中文按比例追趕
-        en_progress = self.en_index / len(self.en_text) if len(self.en_text) > 0 else 0
-        tc_target = int(en_progress * len(self.tc_text))
-        tc_distance = tc_target - self.tc_index
-        
-        if tc_distance > 0 and self.tc_index < len(self.tc_text):
-            if tc_distance > 5:
-                # 中文追趕可以更快一些，因為中文通常較短
-                tc_step = min(2, tc_distance, len(self.tc_text) - self.tc_index)
-            else:
-                tc_step = 1
-                
-            self.tc_index += tc_step
-            self.tc_current_text = self.tc_text[:self.tc_index]
-            
-            if tc_step == 1:
-                current_char = self.tc_text[self.tc_index-1] if self.tc_index > 0 else ''
-                print(f"⌨️ 中文逐字: 第{self.tc_index}字 -> '{current_char}' (目標:{tc_target})")
-            else:
-                print(f"⚡ 中文快速追趕: +{tc_step}字 -> 第{self.tc_index}字")
-            
+        # 立即更新顯示
         self.update()
         
-    def _tts_sync_typing(self):
-        """TTS同步的逐字打字效果"""
-        if not self.tts_sync_enabled:
+    def _update_display(self):
+        """統一的顯示更新機制"""
+        if not self.is_showing:
             return
             
-        # 根據當前TTS進度決定應該顯示到哪個字符
-        target_index = min(self.current_tts_position, self.tts_text_length)
-        
-        if self.is_bilingual_mode:
-            self._tts_sync_bilingual_typing(target_index)
+        if self.tts_sync_enabled:
+            self._update_tts_sync_display()
         else:
-            self._tts_sync_single_typing(target_index)
+            self._update_normal_display()
             
-    def _tts_sync_single_typing(self, target_index):
-        """TTS同步的單語逐字打字"""
-        if hasattr(self, 'full_text') and self.full_text:
-            # 逐字推進到目標位置
-            if target_index > self.current_index:
-                # 一次只推進一個字符，實現逐字效果
-                self.current_index += 1
-                self.current_text = self.full_text[:self.current_index]
-                
-                # 顯示當前字符（如果是空格則顯示 [SPACE]）
-                current_char = self.current_text[-1:] if self.current_text else ''
-                display_char = '[SPACE]' if current_char == ' ' else current_char
-                print(f"逐字打字: 第{self.current_index}字 -> '{display_char}' (TTS進度:{target_index})")
-                
-                self.update()
-                
-    def _tts_sync_bilingual_typing(self, target_index):
-        """TTS同步的雙語逐字打字"""
-        if not (hasattr(self, 'en_text') and hasattr(self, 'tc_text')):
-            return
-            
-        # 計算英文應該顯示到的位置
-        en_target_index = min(target_index, len(self.en_text))
+    def _update_tts_sync_display(self):
+        """TTS同步顯示更新 - 修復結尾卡頓問題"""
+        # 計算目標顯示位置
+        target_pos = self.tts_target_position
         
-        # 逐字推進英文
-        if en_target_index > self.en_index:
-            self.en_index += 1
-            self.en_current_text = self.en_text[:self.en_index]
-            
-            print(f"英文逐字: 第{self.en_index}字 -> '{self.en_current_text[-1:]}' (目標:{en_target_index})")
-            
-        # 根據英文進度計算中文進度
-        en_progress = self.en_index / len(self.en_text) if len(self.en_text) > 0 else 0
-        tc_target_index = int(en_progress * len(self.tc_text))
-        
-        # 逐字推進中文
-        if tc_target_index > self.tc_index:
-            self.tc_index += 1
-            self.tc_current_text = self.tc_text[:self.tc_index]
-            
-            print(f"中文逐字: 第{self.tc_index}字 -> '{self.tc_current_text[-1:]}' (目標:{tc_target_index})")
-        
-        self.update()
-        
-    def _sync_with_tts(self):
-        """與TTS即時同步"""
-        if not self.tts_sync_enabled or not self.tts_start_time:
-            return
-            
+        # 檢查是否接近結尾 - 如果TTS進度超過90%，更主動地完成顯示
         current_time = time.time()
-        elapsed_time = current_time - self.tts_start_time
+        time_since_last_update = current_time - self.last_tts_update_time
         
-        # 找到當前應該顯示到哪個字符
-        target_index = 0
-        for i, char_time in enumerate(self.char_timings):
-            if elapsed_time >= char_time:
-                target_index = i + 1
-            else:
-                break
-        
-        # 更新顯示
         if self.is_bilingual_mode:
-            # 雙語模式：同步更新兩種語言
-            self._sync_bilingual_display(target_index)
+            # 雙語模式
+            if hasattr(self, 'en_text') and self.en_text:
+                # 英文直接同步到TTS位置
+                en_target = min(target_pos, len(self.en_text))
+                
+                # 英文積極完成邏輯 - 修復每句延遲
+                if (en_target >= len(self.en_text) * 0.9 and 
+                    time_since_last_update > 0.3 and 
+                    self.en_index < len(self.en_text)):
+                    en_target = len(self.en_text)
+                    print(f"🔧 強制完成英文顯示: {en_target}/{len(self.en_text)}")
+                # 英文進度停滯檢測
+                elif (en_target > len(self.en_text) * 0.7 and 
+                      time_since_last_update > 0.2 and 
+                      en_target == self.en_index and 
+                      self.en_index < len(self.en_text)):
+                    en_target = min(self.en_index + 3, len(self.en_text))
+                    print(f"🔧 英文句子推進: {self.en_index}→{en_target}")
+                
+                if en_target > self.en_index:
+                    self.en_index = en_target
+                    self.en_current_text = self.en_text[:self.en_index]
+                    
+                    # 檢查英文完成
+                    if self.en_index >= len(self.en_text) and not self._en_completed:
+                        self._en_completed = True
+                        self.en_typing_complete.emit()
+                
+                # 中文按比例同步
+                if hasattr(self, 'tc_text') and self.tc_text:
+                    en_progress = self.en_index / len(self.en_text) if len(self.en_text) > 0 else 0
+                    tc_target = int(en_progress * len(self.tc_text))
+                    
+                    # 中文積極完成邏輯 - 修復每句延遲
+                    if (tc_target >= len(self.tc_text) * 0.9 and 
+                        time_since_last_update > 0.3 and 
+                        self.tc_index < len(self.tc_text)):
+                        tc_target = len(self.tc_text)
+                        print(f"🔧 強制完成中文顯示: {tc_target}/{len(self.tc_text)}")
+                    # 中文進度停滯檢測
+                    elif (tc_target > len(self.tc_text) * 0.7 and 
+                          time_since_last_update > 0.2 and 
+                          tc_target == self.tc_index and 
+                          self.tc_index < len(self.tc_text)):
+                        tc_target = min(self.tc_index + 2, len(self.tc_text))  # 中文字符較少推進
+                        print(f"🔧 中文句子推進: {self.tc_index}→{tc_target}")
+                    
+                    if tc_target > self.tc_index:
+                        self.tc_index = tc_target
+                        self.tc_current_text = self.tc_text[:self.tc_index]
+                        
+                        # 檢查中文完成
+                        if self.tc_index >= len(self.tc_text) and not self._tc_completed:
+                            self._tc_completed = True
+                            self.tc_typing_complete.emit()
         else:
             # 單語模式
-            if target_index > self.current_index:
-                self.current_text = self.full_text[:target_index]
-                self.current_index = target_index
-                self.update()
+            if hasattr(self, 'full_text') and self.full_text:
+                target_index = min(target_pos, len(self.full_text))
                 
-                if self.current_index >= len(self.full_text):
-                    print("All caption typing complete")
-                    self.typing_complete.emit()
+                # 更積極的結尾完成邏輯 - 修復每句延遲
+                force_complete = False
+                
+                # 條件1: 接近結尾且沒更新 (針對整體結尾)
+                if (target_index >= len(self.full_text) * 0.9 and 
+                    time_since_last_update > 0.3 and  # 縮短到300ms
+                    self.current_index < len(self.full_text)):
+                    force_complete = True
+                    print(f"🔧 整體結尾強制完成: {target_index}/{len(self.full_text)}")
+                
+                # 條件2: 進度停滯檢測 (針對每句結尾延遲)
+                elif (target_index > len(self.full_text) * 0.7 and  # 70%以後就開始檢測
+                      time_since_last_update > 0.2 and  # 200ms沒更新
+                      target_index == self.current_index and  # 進度停滯
+                      self.current_index < len(self.full_text)):
+                    force_complete = True
+                    target_index = min(self.current_index + 5, len(self.full_text))  # 推進5個字符
+                    print(f"🔧 句子結尾推進: {self.current_index}→{target_index}")
+                
+                if force_complete:
+                    pass  # 使用上面設定的target_index
+                
+                if target_index > self.current_index:
+                    self.current_index = target_index
+                    self.current_text = self.full_text[:self.current_index]
                     
-    def _sync_bilingual_display(self, en_target_index):
-        """同步雙語顯示"""
-        # 更新英文
-        if en_target_index > self.en_index and self.en_index < len(self.en_text):
-            self.en_current_text = self.en_text[:en_target_index]
-            self.en_index = en_target_index
+                    # 檢查完成 - 現在主動觸發完成
+                    if self.current_index >= len(self.full_text):
+                        print("📝 字幕顯示完成")
+                        # 觸發完成信號，但不停止計時器（等TTS完成）
+                        if not hasattr(self, '_typing_completed') or not self._typing_completed:
+                            self._typing_completed = True
+                            self.typing_complete.emit()
+        
+        self.update()
+        
+    def _update_normal_display(self):
+        """常規顯示更新（非TTS同步）"""
+        if self.is_bilingual_mode:
+            self._update_bilingual_normal()
+        else:
+            self._update_single_normal()
             
-            if self.en_index >= len(self.en_text) and not self._en_completed:
+    def _update_single_normal(self):
+        """單語常規更新"""
+        if self.current_index < len(self.full_text):
+            self.current_index += 1
+            self.current_text = self.full_text[:self.current_index]
+            self.update()
+        else:
+            self.display_timer.stop()
+            self.typing_complete.emit()
+            
+    def _update_bilingual_normal(self):
+        """雙語常規更新 - 平衡推進"""
+        tc_total = len(self.tc_text) if hasattr(self, 'tc_text') else 0
+        en_total = len(self.en_text) if hasattr(self, 'en_text') else 0
+        
+        # 計算當前進度
+        tc_progress = self.tc_index / tc_total if tc_total > 0 else 1.0
+        en_progress = self.en_index / en_total if en_total > 0 else 1.0
+        
+        # 推進落後的語言
+        advanced = False
+        
+        if not self._tc_completed and tc_progress <= en_progress and self.tc_index < tc_total:
+            self.tc_index += 1
+            self.tc_current_text = self.tc_text[:self.tc_index]
+            advanced = True
+            
+            if self.tc_index >= tc_total:
+                self._tc_completed = True
+                self.tc_typing_complete.emit()
+                
+        if not self._en_completed and en_progress <= tc_progress and self.en_index < en_total:
+            self.en_index += 1
+            self.en_current_text = self.en_text[:self.en_index]
+            advanced = True
+            
+            if self.en_index >= en_total:
                 self._en_completed = True
                 self.en_typing_complete.emit()
         
-        # 計算中文應該顯示的比例
-        en_progress = self.en_index / len(self.en_text) if len(self.en_text) > 0 else 0
-        tc_target_index = int(en_progress * len(self.tc_text))
-        
-        # 更新中文
-        if tc_target_index > self.tc_index and self.tc_index < len(self.tc_text):
-            self.tc_current_text = self.tc_text[:tc_target_index]
-            self.tc_index = tc_target_index
+        if advanced:
+            self.update()
             
-            if self.tc_index >= len(self.tc_text) and not self._tc_completed:
-                self._tc_completed = True
-                self.tc_typing_complete.emit()
-        
-        self.update()
-        
         # 檢查是否都完成
         if self._tc_completed and self._en_completed:
-            print("All caption typing complete")
+            self.display_timer.stop()
             self.typing_complete.emit()
             
     def disable_tts_sync(self):
-        """禁用TTS同步，並立即完成字幕顯示 - 在真正TTS完成時調用"""
+        """禁用TTS同步並完成顯示"""
         if not self.tts_sync_enabled:
             return
             
-        print("TTS真正完成，觸發字幕完成信號")
+        print("TTS完成，完成字幕顯示")
         self.tts_sync_enabled = False
-        self.tts_start_time = None
+        self._typing_completed = False  # 重置標誌供下次使用
         
-        # 停止逐字打字計時器
-        if hasattr(self, 'tts_typing_timer') and self.tts_typing_timer.isActive():
-            self.tts_typing_timer.stop()
+        # 停止計時器
+        if self.display_timer.isActive():
+            self.display_timer.stop()
         
-        # 立即完成所有字幕顯示
+        # 完成所有字幕顯示
         if self.is_bilingual_mode:
-            # 完成雙語顯示
             if hasattr(self, 'tc_text') and hasattr(self, 'en_text'):
                 self.tc_current_text = self.tc_text
                 self.en_current_text = self.en_text
                 self.tc_index = len(self.tc_text)
                 self.en_index = len(self.en_text)
                 
-                if not getattr(self, '_tc_completed', False):
+                if not self._tc_completed:
                     self._tc_completed = True
-                    print("TC typing complete")
                     self.tc_typing_complete.emit()
                     
-                if not getattr(self, '_en_completed', False):
+                if not self._en_completed:
                     self._en_completed = True
-                    print("EN typing complete")
                     self.en_typing_complete.emit()
                     
-                print("All caption typing complete")
                 self.typing_complete.emit()
         else:
-            # 完成單語顯示
             if hasattr(self, 'full_text'):
                 self.current_text = self.full_text
                 self.current_index = len(self.full_text)
-                print("All caption typing complete")
                 self.typing_complete.emit()
         
         self.update()
             
-        if hasattr(self, 'char_timings'):
-            self.char_timings = []
-
-    def type_next_character(self):
-        """打字機效果 - 如果啟用TTS同步則跳過"""
-        if self.tts_sync_enabled:
-            return
-            
-        if self.is_bilingual_mode and self.current_phase == "simultaneous":
-            self._handle_simultaneous_typing()
-        else:
-            self._handle_single_typing()
-    
-    def _handle_single_typing(self):
-        """處理單語打字"""
-        if self.current_index < len(self.full_text):
-            self.current_text = self.full_text[:self.current_index + 1]
-            self.current_index += 1
-            self.update()
-        else:
-            self.typing_timer.stop()
-            self.typing_complete.emit()
-    
-    def _handle_simultaneous_typing(self):
-        """處理同時打字模式 - 改進的同步算法"""
-        tc_total = len(self.tc_text)
-        en_total = len(self.en_text)
-        
-        # 計算當前進度
-        tc_progress = self.tc_index / tc_total if tc_total > 0 else 1.0
-        en_progress = self.en_index / en_total if en_total > 0 else 1.0
-        
-        # 決定要推進哪個語言
-        tc_advancing = False
-        en_advancing = False
-        
-        # 如果兩個都還沒完成
-        if not self._tc_completed and not self._en_completed:
-            # 比較進度，推進落後的那個
-            if tc_progress <= en_progress and self.tc_index < tc_total:
-                tc_advancing = True
-            if en_progress <= tc_progress and self.en_index < en_total:
-                en_advancing = True
-            
-            # 確保至少有一個在推進
-            if not tc_advancing and not en_advancing:
-                if self.tc_index < tc_total:
-                    tc_advancing = True
-                elif self.en_index < en_total:
-                    en_advancing = True
-        else:
-            # 如果其中一個完成了，繼續推進另一個
-            if not self._tc_completed and self.tc_index < tc_total:
-                tc_advancing = True
-            if not self._en_completed and self.en_index < en_total:
-                en_advancing = True
-        
-        # 執行推進
-        if tc_advancing:
-            self.tc_current_text = self.tc_text[:self.tc_index + 1]
-            self.tc_index += 1
-            
-            if self.tc_index >= tc_total:
-                self._tc_completed = True
-                self.tc_typing_complete.emit()
-                
-        if en_advancing:
-            self.en_current_text = self.en_text[:self.en_index + 1]
-            self.en_index += 1
-            
-            if self.en_index >= en_total:
-                self._en_completed = True
-                self.en_typing_complete.emit()
-        
-        self.update()
-        
-        # 檢查是否都完成
-        if self._tc_completed and self._en_completed:
-            self.typing_timer.stop()
-            self.typing_complete.emit()
-            
     def hide(self):
         """隱藏字幕"""
-        self.typing_timer.stop()
-        
-        # 停止TTS逐字打字計時器
-        if hasattr(self, 'tts_typing_timer') and self.tts_typing_timer.isActive():
-            self.tts_typing_timer.stop()
+        if self.display_timer.isActive():
+            self.display_timer.stop()
         
         self.current_text = ""
         self.is_showing = False
         self.is_bilingual_mode = False
-        self.tc_lines_cache = []
         
         # 重置狀態
         self.tc_current_text = ""
@@ -633,8 +455,8 @@ class CaptionWidget(QWidget):
         self._en_completed = False
         
         # 重置TTS同步
-        self.disable_tts_sync()
-            
+        self.tts_sync_enabled = False
+        
         super().hide()
         
     def paintEvent(self, event):
@@ -654,141 +476,265 @@ class CaptionWidget(QWidget):
             self._paint_single_language(painter, metrics)
                 
     def _paint_single_language(self, painter, metrics):
-        """繪製單語字幕"""
+        """繪製單語字幕 - 帶逐行背景"""
         if not self.current_text:
             return
             
-        lines = self._wrap_text(self.current_text, metrics)
-        line_height = metrics.height()
-        total_height = len(lines) * (line_height + self.line_spacing) - self.line_spacing + 2 * self.padding
-        y_offset = self.height() - total_height
+        # 獲取完整文字的所有行
+        full_lines = self._wrap_text(self.full_text, metrics) if self.full_text else []
+        if not full_lines:
+            return
+            
+        # 根據當前顯示的字符數量，計算應該顯示到第幾行
+        current_lines, current_line_partial = self._get_current_display_lines(self.current_text, full_lines)
         
-        for i, line in enumerate(lines):
-            if line.strip():
-                self._draw_text_line(painter, line, i, y_offset, line_height, metrics)
+        line_height = metrics.height()
+        total_height = len(full_lines) * (line_height + self.line_spacing) - self.line_spacing + 2 * self.padding
+        
+        # 確保文字在可見區域內
+        available_height = self.height()
+        if total_height > available_height:
+            y_offset = 0
+        else:
+            y_offset = available_height - total_height
+        
+        y_offset = max(0, y_offset)
+        
+        # 繪製背景和文字 - 只繪製已顯示的行
+        for i in range(len(current_lines)):
+            line_text = current_lines[i]
+            if i == len(current_lines) - 1 and current_line_partial:
+                # 最後一行可能只顯示部分文字
+                line_text = current_line_partial
+            
+            if line_text.strip():
+                self._draw_text_line_with_background(painter, line_text, i, y_offset, line_height, metrics)
                 
     def _paint_bilingual(self, painter, metrics):
-        """繪製雙語字幕"""
+        """繪製雙語字幕 - 帶逐行背景"""
         line_height = metrics.height()
         
-        tc_lines = []
-        en_lines = []
+        # 獲取完整文字的所有行
+        tc_full_lines = self._wrap_text(self.tc_text, metrics) if hasattr(self, 'tc_text') and self.tc_text else []
+        en_full_lines = self._wrap_text(self.en_text, metrics) if hasattr(self, 'en_text') and self.en_text else []
+        
+        # 計算當前顯示的行
+        tc_current_lines, tc_partial = [], ""
+        en_current_lines, en_partial = [], ""
         
         if hasattr(self, 'tc_current_text') and self.tc_current_text:
-            tc_lines = self._wrap_text(self.tc_current_text, metrics)
+            tc_current_lines, tc_partial = self._get_current_display_lines(self.tc_current_text, tc_full_lines)
         
         if hasattr(self, 'en_current_text') and self.en_current_text:
-            en_lines = self._wrap_text(self.en_current_text, metrics)
+            en_current_lines, en_partial = self._get_current_display_lines(self.en_current_text, en_full_lines)
         
-        total_lines = len(tc_lines) + len(en_lines)
-        if total_lines > 0 and len(tc_lines) > 0 and len(en_lines) > 0:
-            total_lines += 1  # 語言之間的間隔
+        # 計算總行數（包括已顯示的）
+        total_displayed_lines = len(tc_current_lines) + len(en_current_lines)
+        if tc_partial:
+            total_displayed_lines += 1
+        if en_partial:
+            total_displayed_lines += 1
+        if len(tc_current_lines) > 0 and len(en_current_lines) > 0:
+            total_displayed_lines += 1  # 語言間隔
             
-        total_height = total_lines * (line_height + self.line_spacing) - self.line_spacing + 2 * self.padding
-        y_offset = self.height() - total_height
+        if total_displayed_lines == 0:
+            return  # 沒有文字要顯示
+            
+        # 計算完整佈局（基於所有文字）
+        total_full_lines = len(tc_full_lines) + len(en_full_lines)
+        if total_full_lines > 0 and len(tc_full_lines) > 0 and len(en_full_lines) > 0:
+            total_full_lines += 1  # 語言間隔
+            
+        total_height = total_full_lines * (line_height + self.line_spacing) - self.line_spacing + 2 * self.padding
+        
+        # 確保文字在可見區域內
+        available_height = self.height()
+        if total_height > available_height:
+            y_offset = 0
+        else:
+            y_offset = available_height - total_height
+        
+        y_offset = max(0, y_offset)
         
         current_line = 0
         
-        # 繪製中文
-        for line in tc_lines:
+        # 繪製中文（已顯示的行）
+        for i, line in enumerate(tc_current_lines):
             if line.strip():
-                self._draw_text_line(painter, line, current_line, y_offset, line_height, metrics)
+                self._draw_text_line_with_background(painter, line, current_line, y_offset, line_height, metrics)
+            current_line += 1
+            
+        # 繪製中文部分行
+        if tc_partial and tc_partial.strip():
+            self._draw_text_line_with_background(painter, tc_partial, current_line, y_offset, line_height, metrics)
             current_line += 1
             
         # 語言之間的間隔
-        if len(tc_lines) > 0 and len(en_lines) > 0:
+        if len(tc_current_lines) > 0 and len(en_current_lines) > 0:
             current_line += 1
             
-        # 繪製英文
-        for line in en_lines:
+        # 繪製英文（已顯示的行）
+        for i, line in enumerate(en_current_lines):
             if line.strip():
-                self._draw_text_line(painter, line, current_line, y_offset, line_height, metrics)
+                self._draw_text_line_with_background(painter, line, current_line, y_offset, line_height, metrics)
+            current_line += 1
+            
+        # 繪製英文部分行
+        if en_partial and en_partial.strip():
+            self._draw_text_line_with_background(painter, en_partial, current_line, y_offset, line_height, metrics)
             current_line += 1
                 
-    def _draw_text_line(self, painter, line, line_index, y_offset, line_height, metrics):
-        """繪製單行文本"""
-        line_width = metrics.horizontalAdvance(line)
-        
-        bg_x = (self.width() - line_width) // 2 - self.padding
-        bg_y = y_offset + line_index * (line_height + self.line_spacing) - 5
-        bg_width = line_width + 2 * self.padding
-        bg_height = line_height + 10
-        
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(0, 0, 0, 180))
-        painter.drawRoundedRect(bg_x, bg_y, bg_width, bg_height, 5, 5)
-        
-        painter.setPen(QColor(255, 255, 255))
-        text_x = (self.width() - line_width) // 2
-        text_y = y_offset + line_index * (line_height + self.line_spacing) + line_height - 5
-        painter.drawText(text_x, text_y, line)
-
     def _wrap_text(self, text, metrics):
-        """文字自動換行"""
+        """基於字符數量的統一換行處理 - 中英文使用相同限制"""
         if not text:
             return []
             
-        text = self._clean_text_for_display(text)
-        lines = []
-        max_width = self.width() - 2 * self.padding
-        
-        # 檢測是否為中文文本
-        chinese_char_count = sum(1 for char in text if '\u4e00' <= char <= '\u9fff')
-        total_char_count = len(text)
-        is_mostly_chinese = chinese_char_count > total_char_count * 0.5
-        
-        if is_mostly_chinese:
-            # 中文按字符換行
-            lines = self._wrap_by_character(text, metrics, max_width)
-        else:
-            # 英文按單詞換行
-            words = text.split(' ')
-            current_line = ""
-            
-            for word in words:
-                test_line = current_line + (' ' if current_line else '') + word
-                line_width = metrics.horizontalAdvance(test_line)
-                
-                if line_width > max_width and current_line:
-                    lines.append(current_line.strip())
-                    current_line = word
-                else:
-                    current_line = test_line
-                    
-            if current_line.strip():
-                lines.append(current_line.strip())
-        
-        return lines
-
-    def _clean_text_for_display(self, text):
-        """清理文本，避免顯示問題"""
-        if not text:
-            return text
-        
-        # 移除不可見字符
-        text = re.sub(r'[^\x00-\x7F\u4e00-\u9fff]+', ' ', text)
-        
-        # 合併多個空格
-        text = re.sub(r'\s+', ' ', text)
-        
-        return text.strip()
-
-    def _wrap_by_character(self, text, metrics, max_width):
-        """按字符換行（主要用於中文）"""
         lines = []
         current_line = ""
+        current_weight = 0.0
         
-        for char in text:
-            test_line = current_line + char
-            line_width = metrics.horizontalAdvance(test_line)
+        # 處理每個字符
+        i = 0
+        while i < len(text):
+            char = text[i]
             
-            if line_width > max_width and current_line:
-                lines.append(current_line)
-                current_line = char
+            # 計算字符權重
+            char_weight = self._get_char_weight(char)
+            
+            # 檢查是否超過限制
+            if current_weight + char_weight <= self.max_chars_per_line:
+                # 字符可以添加到當前行
+                current_line += char
+                current_weight += char_weight
+                i += 1
             else:
-                current_line = test_line
-                
+                # 當前行已滿，需要換行
+                if current_line:
+                    # 嘗試在合適的地方斷行
+                    wrapped_result = self._smart_break_line_by_chars(current_line, char, text, i)
+                    lines.append(wrapped_result['line'])
+                    current_line = wrapped_result['remaining']
+                    current_weight = self._calculate_line_weight(current_line)
+                    i = wrapped_result['next_index']
+                else:
+                    # 單個字符就超限了，強制添加
+                    current_line = char
+                    current_weight = char_weight
+                    i += 1
+        
+        # 添加最後一行
         if current_line:
             lines.append(current_line)
             
-        return lines
+        return lines if lines else [""]
+        
+    def _get_char_weight(self, char):
+        """計算字符權重"""
+        # 中文字符（包括中文標點）
+        if '\u4e00' <= char <= '\u9fff' or char in '，。！？；：「」『』':
+            return self.chinese_char_weight
+        # 英文和其他字符
+        else:
+            return 1.0
+            
+    def _calculate_line_weight(self, line):
+        """計算一行文字的總權重"""
+        total_weight = 0.0
+        for char in line:
+            total_weight += self._get_char_weight(char)
+        return total_weight
+        
+    def _smart_break_line_by_chars(self, current_line, next_char, full_text, current_index):
+        """基於字符數量的智能斷行 - 優先在合適位置斷開"""
+        # 在標點符號後斷行（中英文）
+        punctuation = "，。！？；：,. !?;:"
+        
+        # 從行尾往前找合適的斷點（最多回溯10個字符）
+        for i in range(len(current_line) - 1, max(0, len(current_line) - 10), -1):
+            if current_line[i] in punctuation:
+                # 在標點後斷行
+                break_point = i + 1
+                return {
+                    'line': current_line[:break_point],
+                    'remaining': current_line[break_point:] + next_char,
+                    'next_index': current_index + 1
+                }
+        
+        # 在空格處斷行（主要為英文）
+        for i in range(len(current_line) - 1, max(0, len(current_line) - 8), -1):
+            if current_line[i] == ' ':
+                break_point = i + 1
+                return {
+                    'line': current_line[:break_point].rstrip(),
+                    'remaining': current_line[break_point:].lstrip() + next_char,
+                    'next_index': current_index + 1
+                }
+        
+        # 如果找不到好的斷點，在3/4處強制斷行
+        break_point = max(1, len(current_line) * 3 // 4)
+        return {
+            'line': current_line[:break_point],
+            'remaining': current_line[break_point:] + next_char,
+            'next_index': current_index + 1
+        }
+        
+    def _smart_break_line(self, current_line, next_char, full_text, current_index):
+        """智能斷行 - 優先在合適位置斷開（舊版本，保留兼容性）"""
+        # 重定向到新的字符數量版本
+        return self._smart_break_line_by_chars(current_line, next_char, full_text, current_index)
+        
+    def _get_current_display_lines(self, current_text, full_lines):
+        """根據當前顯示的字符計算應該顯示到第幾行"""
+        if not current_text or not full_lines:
+            return [], ""
+            
+        char_count = 0
+        current_lines = []
+        current_line_partial = ""
+        
+        for line in full_lines:
+            if char_count + len(line) <= len(current_text):
+                # 這行完全顯示
+                current_lines.append(line)
+                char_count += len(line)
+            else:
+                # 這行部分顯示
+                remaining_chars = len(current_text) - char_count
+                if remaining_chars > 0:
+                    current_line_partial = line[:remaining_chars]
+                break
+                
+        return current_lines, current_line_partial
+        
+    def _draw_text_line_with_background(self, painter, text, line_index, y_offset, line_height, metrics):
+        """繪製帶背景的單行文字"""
+        # 計算位置
+        y = y_offset + self.padding + line_index * (line_height + self.line_spacing)
+        
+        # 計算文字寬度並居中
+        text_width = metrics.horizontalAdvance(text)
+        x = (self.width() - text_width) // 2
+        
+        # 繪製半透明黑色背景
+        background_padding = 8
+        background_rect = QRect(
+            x - background_padding, 
+            y, 
+            text_width + 2 * background_padding, 
+            line_height
+        )
+        
+        painter.fillRect(background_rect, QColor(0, 0, 0, 102))  # 40% 透明度 (255 * 0.4 = 102)
+        
+        # 繪製文字陰影
+        painter.setPen(QColor(0, 0, 0, 180))
+        painter.drawText(x + 2, y + line_height - 2, text)
+        
+        # 繪製主文字
+        painter.setPen(QColor(255, 255, 255, 255))
+        painter.drawText(x, y + line_height - 4, text)
+        
+    def _draw_text_line(self, painter, text, line_index, y_offset, line_height, metrics):
+        """繪製單行文字（無背景版本）"""
+        # 重定向到帶背景版本
+        self._draw_text_line_with_background(painter, text, line_index, y_offset, line_height, metrics)

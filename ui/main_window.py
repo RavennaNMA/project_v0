@@ -23,10 +23,30 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.startup_params = startup_params
         
-        # 設定縮放因子
+        # 設定縮放因子和視窗尺寸
         self.scale_factor = 0.5 if startup_params.get('mini_mode', False) else 1.0
-        self.window_width = int(1080 * self.scale_factor)
-        self.window_height = int(1920 * self.scale_factor)
+        
+        # 💪 修正視窗尺寸：恢復豎屏格式1080x1920，適配直立螢幕
+        if startup_params.get('fullscreen', False):
+            # 全螢幕模式使用螢幕尺寸
+            from PyQt6.QtWidgets import QApplication
+            screen = QApplication.primaryScreen()
+            if screen:
+                screen_geometry = screen.geometry()
+                self.window_width = screen_geometry.width()
+                self.window_height = screen_geometry.height()
+            else:
+                # 備用尺寸（您的螢幕尺寸）
+                self.window_width = 1200
+                self.window_height = 1920
+        else:
+            # 視窗模式使用豎屏比例，適合您的1200x1920直立螢幕
+            base_width = 1200   # 您的螢幕寬度
+            base_height = 1920  # 您的螢幕高度  
+            self.window_width = int(base_width * self.scale_factor)
+            self.window_height = int(base_height * self.scale_factor)
+        
+        print(f"🖥️ 視窗尺寸設定: {self.window_width}x{self.window_height} (縮放: {self.scale_factor})")
         
         # 載入設定
         self.config_loader = ConfigLoader()
@@ -98,7 +118,12 @@ class MainWindow(QMainWindow):
         if self.startup_params['fullscreen']:
             self.showFullScreen()
         else:
+            # 💪 修復視窗大小：移除邊框和標題欄，真正填滿螢幕
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
             self.setFixedSize(self.window_width, self.window_height)
+            
+            # 確保視窗填滿螢幕（移動到左上角）
+            self.move(0, 0)
             
         # 設定黑色背景
         self.setStyleSheet("background-color: black;")
@@ -213,8 +238,7 @@ class MainWindow(QMainWindow):
             self.tts_service.tts_progress.connect(self.caption_widget.update_tts_progress)
             
             # 連接文字片段信號 - 提供更精細的同步
-            self.tts_service.tts_word_progress.connect(self.on_tts_word_progress)  
-            self.tts_service.tts_word_progress.connect(self.caption_widget.update_tts_word_progress)
+            self.tts_service.tts_word_progress.connect(self.on_tts_word_progress)
             
             print("✅ TTS 即時字幕同步信號已連接")
             
@@ -245,15 +269,15 @@ class MainWindow(QMainWindow):
             self.first_frame_received = True
             self.loading_label.hide()
         
-        # 從 1920x1080 裁切出中間的 1080x1920 區域
+        # 從 1920x1080 裁切出中間的 1080x1920 豎屏區域
         cropped_frame = self.crop_frame_to_portrait(frame)
         
         # 根據 mini mode 進行縮放
         if self.startup_params.get('mini_mode', False):
-            target_width = int(1080 * 0.5)
+            target_width = int(1200 * 0.5)
             target_height = int(1920 * 0.5)
         else:
-            target_width = 1080
+            target_width = 1200
             target_height = 1920
         
         # 縮放到目標尺寸
@@ -319,25 +343,33 @@ class MainWindow(QMainWindow):
                 self.detection_overlay.clear_detections()
                 
     def crop_frame_to_portrait(self, frame):
-        """從 1920x1080 裁切出中間的 1080x1920 區域"""
+        """從1920x1080相機畫面裁切出正確比例的1200x1920豎屏區域"""
         height, width = frame.shape[:2]
         
+        # 確保輸入是標準相機格式
         if width != 1920 or height != 1080:
             frame = cv2.resize(frame, (1920, 1080), interpolation=cv2.INTER_LINEAR)
-            width, height = 1920, 1080
+            height, width = 1080, 1920
         
-        target_ratio = 9/16
-        current_height = 1080
-        required_width = int(current_height * target_ratio)
-        crop_x = (1920 - required_width) // 2
+        # 💪 修復臉部比例：適應1200x1920螢幕比例
+        # 目標比例 1200:1920 = 5:8
+        # 從1080高度計算對應的5:8寬度：1080 * 5/8 = 675像素
+        target_crop_width = int(1080 * 5 / 8)  # 675像素
         
-        cropped = frame[0:1080, crop_x:crop_x+required_width]
-        portrait_crop = cv2.resize(cropped, (1080, 1920), interpolation=cv2.INTER_LINEAR)
+        # 從1920x1080裁切出中間的675x1080區域
+        crop_x = (1920 - target_crop_width) // 2  # 居中裁切
+        crop_y = 0
         
-        return portrait_crop
+        # 裁切出正確比例的區域
+        cropped_frame = frame[crop_y:crop_y + 1080, crop_x:crop_x + target_crop_width]
+        
+        # 縮放到目標尺寸1200x1920（保持正確比例，不會拉伸變形）
+        portrait_frame = cv2.resize(cropped_frame, (1200, 1920), interpolation=cv2.INTER_LINEAR)
+        
+        return portrait_frame
         
     def adjust_detection_coordinates(self, detection_result, original_shape, display_width, display_height):
-        """調整偵測座標以配合裁切後的顯示"""
+        """調整偵測座標以配合豎屏裁切和縮放"""
         # 安全檢查
         if not detection_result or not isinstance(detection_result, dict):
             return None
@@ -346,50 +378,46 @@ class MainWindow(QMainWindow):
         required_keys = ['x', 'y', 'width', 'height']
         if not all(key in detection_result for key in required_keys):
             return None
-            
-        orig_h, orig_w = original_shape[:2]
         
-        target_ratio = 9/16
-        required_width = int(orig_h * target_ratio)
-        crop_x = (orig_w - required_width) // 2
+        # 💪 豎屏裁切座標調整邏輯
+        # 步驟1：考慮從1920x1080裁切到中間1080x1080區域的影響
+        crop_x_offset = (1920 - 1080) // 2  # 420像素偏移
         
+        # 檢查偵測框是否在裁切區域內
         face_left = detection_result['x']
         face_right = detection_result['x'] + detection_result['width']
         
-        if face_right < crop_x or face_left > crop_x + required_width:
+        # 如果人臉完全在裁切區域外，返回None
+        if face_right < crop_x_offset or face_left > crop_x_offset + 1080:
             return None
-            
-        adjusted_x = max(0, detection_result['x'] - crop_x)
+        
+        # 調整X座標（減去裁切偏移）
+        adjusted_x = max(0, detection_result['x'] - crop_x_offset)
+        adjusted_width = min(detection_result['width'], 1080 - adjusted_x)
+        
+        # Y座標不變（沒有Y方向裁切）
         adjusted_y = detection_result['y']
-        adjusted_width = min(detection_result['width'], required_width - adjusted_x)
         adjusted_height = detection_result['height']
         
-        if adjusted_x + adjusted_width <= 0 or adjusted_y + adjusted_height <= 0:
-            return None
-            
-        crop_scale_x = 1080 / required_width
-        crop_scale_y = 1920 / orig_h
+        # 步驟2：從1080x1080縮放到1080x1920的座標調整
+        # X方向不變，Y方向按1920/1080比例縮放
+        scale_y = 1920 / 1080
+        final_y = adjusted_y * scale_y
+        final_height = adjusted_height * scale_y
         
-        scaled_x = adjusted_x * crop_scale_x
-        scaled_y = adjusted_y * crop_scale_y
-        scaled_width = adjusted_width * crop_scale_x
-        scaled_height = adjusted_height * crop_scale_y
-        
+        # 步驟3：最終縮放到顯示尺寸
         final_scale_x = display_width / 1080
         final_scale_y = display_height / 1920
         
-        final_x = scaled_x * final_scale_x
-        final_y = scaled_y * final_scale_y
-        final_width = scaled_width * final_scale_x
-        final_height = scaled_height * final_scale_y
-        
-        return {
-            'x': final_x,
-            'y': final_y,
-            'width': final_width,
-            'height': final_height,
+        final_result = {
+            'x': adjusted_x * final_scale_x,
+            'y': final_y * final_scale_y,
+            'width': adjusted_width * final_scale_x,
+            'height': final_height * final_scale_y,
             'confidence': detection_result.get('confidence', 0)
         }
+        
+        return final_result
             
     def on_face_detected(self, detected, bbox):
         """處理人臉偵測結果"""
@@ -457,12 +485,9 @@ class MainWindow(QMainWindow):
             if original_frame is not None:
                 cropped_frame = self.crop_frame_to_portrait(original_frame)
                 
-                if self.startup_params.get('mini_mode', False):
-                    target_width = int(1080 * 0.5)
-                    target_height = int(1920 * 0.5)
-                else:
-                    target_width = 1080
-                    target_height = 1920
+                # 💪 修正目標尺寸：使用實際視窗尺寸
+                target_width = self.window_width
+                target_height = self.window_height
                 
                 if cropped_frame.shape[1] != target_width or cropped_frame.shape[0] != target_height:
                     cropped_frame = cv2.resize(cropped_frame, (target_width, target_height), 
