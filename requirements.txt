@@ -1,5 +1,5 @@
 # Location: project_v2/requirements.txt
-# Usage: Python 套件清單
+# Usage: Python 套件清單 (Mac 優化版本)
 
 # UI Framework
 PyQt6>=6.5.0
@@ -25,7 +25,6 @@ psutil>=5.9.0
 # TTS - Kokoro TTS
 kokoro>=0.9.4
 soundfile>=0.12.1
-torch>=2.0.0
 pygame>=2.5.0
 
 # Audio Processing and Voice Modification
@@ -34,7 +33,17 @@ resampy>=0.4.2
 scipy>=1.10.0
 numba>=0.56.4
 websocket-client>=1.8.0
-requests>=2.32.0
 
-# Windows-specific build tool (only needed for packaging)
-pyinstaller>=6.0.0
+# Deep Learning (Mac 版本說明)
+# torch 和 torchaudio 會由啟動腳本根據系統自動安裝
+# Apple Silicon (M1/M2/M3): 使用優化版本
+# Intel Mac: 使用標準 CPU 版本
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# Build tools (僅在需要打包時安裝)
+# pyinstaller>=6.0.0
+
+# Mac 特定依賴項
+# 在 macOS 上某些音頻處理可能需要額外的系統庫
+# 可能需要: brew install portaudio ffmpeg

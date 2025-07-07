@@ -1,342 +1,225 @@
-# Defense Detection System v2
+# 防禦偵測系統 v2 - Mac 版
 
-A comprehensive AI-powered defense detection system integrating ComfyUI, voice modification, computer vision, and hardware control capabilities.
+全新升級的即時人臉偵測系統，整合 AI 分析、語音合成、語音修改與 Arduino 控制，支援 Mac 和 Windows 平台。
 
-## System Requirements
+## 🆕 v2 新功能
 
-### macOS Requirements
-- **macOS Version**: 10.15 (Catalina) or later
-- **Architecture**: Intel x64 or Apple Silicon (M1/M2/M3)
-- **RAM**: Minimum 8GB, Recommended 16GB+
-- **Storage**: Minimum 10GB free space
-- **Camera**: Built-in or USB camera (system will request permissions)
+- 🗣️ **Kokoro TTS 語音合成**：高品質英語語音播放，支援多種聲音選擇
+- 🎵 **語音修改功能**：即時音調調整、音色變換、混響等音頻效果
+- 🔗 **ComfyUI 整合**：與 ComfyUI 工作流程同步，支援即時語音效果調整
+- 📁 **優化的目錄結構**：config/、scripts/、docs/ 等分類管理
+- ⚡ **更好的效能**：優化的音頻處理和即時播放
 
-### Python Requirements
-- **Python Version**: 3.8.0 or later (recommended: 3.10.x)
-- **Package Manager**: pip 21.0+ 
-- **Virtual Environment**: venv or conda
+## 系統特色
 
-### Hardware Requirements (Optional)
-- **Arduino Board**: Arduino Mega for hardware control
-- **Serial Connection**: USB cable for Arduino communication
-- **GPIO Devices**: Relays, LEDs, or other control devices (pins 2-13)
+- 🎯 **高效能人臉偵測**：使用 MediaPipe 實現 30+ FPS 即時偵測
+- 🤖 **雙模型 AI 分析**：圖像識別 + 策略生成（可選）
+- 🎮 **Arduino 整合**：自動化物理回饋控制
+- 🖼️ **動態視覺效果**：偵測動畫、淡入淡出、打字機字幕
+- 💻 **跨平台支援**：Mac 和 Windows 雙平台執行
+- 🚀 **簡易啟動**：雙擊執行，無需命令列
 
-## Installation Guide
+## 系統需求
 
-### Step 1: Verify System Prerequisites
+### Mac 系統需求
+- **macOS 版本**：10.15 (Catalina) 或以上
+- **架構**：Intel x64 或 Apple Silicon (M1/M2/M3/M4)
+- **記憶體**：最低 8GB，建議 16GB+
+- **儲存空間**：最低 10GB 可用空間
+- **相機**：內建或 USB 相機（系統將請求權限）
+- **Python**：3.8.0 或以上（建議 3.9.x）
 
+### 軟體需求
+- Python 3.8 或以上
+- Ollama（選配，用於 AI 功能）
+- 網路攝影機（建議 1080p 或以上）
+
+### 硬體需求（可選）
+- Arduino Uno/Mega（用於硬體控制）
+
+## Mac 快速安裝
+
+### 方法一：自動安裝（推薦）
+
+1. **下載專案**
+   ```bash
+   git clone https://github.com/RavennaNMA/project_v2.git
+   cd project_v2
+   ```
+
+2. **雙擊執行**
+   - 在 Finder 中找到 `st_mac.command`
+   - 雙擊執行（首次執行會自動安裝所有依賴）
+
+### 方法二：手動安裝
+
+1. **檢查 Python**
+   ```bash
+   python3 --version
+   # 應該顯示 3.8.0 或以上版本
+   ```
+
+2. **建立虛擬環境**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **安裝依賴項**
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+4. **特別適配 Apple Silicon**
+   ```bash
+   # 如果您使用 M1/M2/M3/M4 Mac
+   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+   ```
+
+5. **啟動系統**
+   ```bash
+   python main.py
+   ```
+
+## 🎵 新功能使用指南
+
+### Kokoro TTS 語音系統
+
+新版本使用 Kokoro TTS 引擎提供高品質語音合成：
+
+- **多種語音選擇**：支援美式、英式英語等多種聲音
+- **即時播放**：邊合成邊播放，低延遲響應
+- **智能分段**：自動優化文字分割，保持語句自然度
+
+配置文件：`config/tts_config.txt`
+
+### 語音修改功能
+
+提供豐富的音頻效果：
+
+- **音調調整**：-12 到 +12 半音範圍
+- **音色變換**：模擬不同的聲道形狀
+- **音頻效果**：混響、回聲、壓縮、失真等
+- **預設配置**：Cinematic、Monster、Robot 等效果
+
+配置文件：`config/voice_mod_config.txt`
+
+### ComfyUI 整合
+
+- **即時同步**：與 ComfyUI 工作流程聯動
+- **參數同步**：語音效果參數可從 ComfyUI 即時調整
+- **WebSocket 通信**：穩定的即時通信
+
+## 配置文件說明
+
+### config/period_config.csv
+控制系統各階段的時間設定
+
+### config/weapon_config.csv  
+定義武器資訊與控制參數
+
+### config/tts_config.txt
+TTS 語音合成詳細設定
+
+### config/voice_mod_config.txt
+語音修改效果配置
+
+### config/prompt_config.txt
+AI 分析的提示詞模板
+
+## 目錄結構
+
+```
+project_v2/
+├── st_mac.command          # Mac 啟動檔（根目錄）
+├── main.py                 # 主程式
+├── requirements.txt        # Python 套件清單
+├── config/                 # 配置文件目錄
+│   ├── period_config.csv   # 時間設定
+│   ├── weapon_config.csv   # 武器設定
+│   ├── tts_config.txt      # TTS 設定
+│   ├── voice_mod_config.txt # 語音修改設定
+│   └── prompt_config.txt   # AI 提示詞
+├── scripts/                # 腳本目錄
+│   ├── st_mac.command      # Mac 主啟動腳本
+│   └── start_windows.bat   # Windows 啟動腳本
+├── core/                   # 核心功能
+├── ui/                     # 使用者介面
+├── services/               # 服務模組
+├── utils/                  # 工具函式
+├── fonts/                  # 字型檔案
+├── webcam-shots/          # 截圖儲存
+└── weapons_img/           # 武器圖片
+```
+
+## 常見問題解決
+
+### 相機權限問題
 ```bash
-# Check Python version
-python3 --version
-
-# Check pip version  
-pip3 --version
-
-# Install Xcode Command Line Tools (if not already installed)
-xcode-select --install
+# Mac 系統偏好設定 → 安全性與隱私 → 相機
+# 勾選 Terminal 和 Python
 ```
 
-### Step 2: Clone Repository in Cursor
-
-1. Open Cursor IDE
-2. Use `Cmd+Shift+P` and select "Git: Clone"
-3. Enter repository URL or open local folder
-4. Navigate to project directory
-
-### Step 3: Create Virtual Environment
-
+### 音頻相關問題
 ```bash
-# Navigate to project directory
-cd /path/to/defense_system_v1/project_v2
-
-# Create virtual environment
-python3 -m venv venv
-
-# Activate virtual environment
-source venv/bin/activate
-
-# Upgrade pip
-pip install --upgrade pip
+# 安裝額外的音頻庫（可選）
+brew install portaudio ffmpeg
 ```
 
-### Step 4: Install Python Dependencies
+### Kokoro TTS 載入緩慢
+首次使用時 Kokoro 需要下載語言模型，請耐心等待
 
-#### Main Project Dependencies
+### Apple Silicon 優化
+系統已針對 M1/M2/M3/M4 晶片進行優化，會自動使用 CPU 版本的 PyTorch
+
+## 效能優化建議
+
+### 針對 Apple Silicon Mac
+- 使用優化版本的 PyTorch
+- 確保有足夠的記憶體（建議 16GB+）
+
+### 記憶體管理
+- 關閉不必要的應用程式
+- 在活動監視器中監控系統資源
+
+## 開發與除錯
+
+### 啟用 Debug 模式
+啟動時勾選「Debug 模式」可查看詳細系統狀態
+
+### 檢查系統相依性
 ```bash
-# Install core requirements
-pip install -r requirements.txt
+python -c "from services.platform_service import PlatformService; print(PlatformService().check_dependencies())"
 ```
 
-#### ComfyUI Dependencies
+### 查看系統資訊
 ```bash
-# Navigate to ComfyUI directory
-cd ComfyUI
-
-# Install ComfyUI requirements
-pip install -r requirements.txt
-
-# Return to project root
-cd ..
+python -c "from services.platform_service import PlatformService; import pprint; pprint.pprint(PlatformService().get_platform_info())"
 ```
 
-#### Critical Package Versions
-
-The following packages require specific versions for compatibility:
-
-```text
-# Core Framework
-PyQt6>=6.5.0
-
-# AI/ML Stack
-torch>=2.0.0
-torchvision
-torchaudio
-numpy>=1.24.0
-transformers>=4.37.2
-
-# Computer Vision
-opencv-python>=4.8.0
-mediapipe>=0.10.0
-
-# Audio Processing
-kokoro>=0.9.4
-soundfile>=0.12.1
-librosa>=0.10.0
-pygame>=2.5.0
-
-# System Integration
-psutil>=5.9.0
-pyserial>=3.5.0
-requests>=2.31.0
-```
-
-### Step 5: Directory Structure Setup
-
-The system will automatically create required directories, but you can verify:
-
-```bash
-# Verify directory structure
-ls -la
-
-# Required directories should include:
-# - config/          (configuration files)
-# - fonts/           (font resources)  
-# - webcam-shots/    (camera captures)
-# - weapons_img/     (image assets)
-# - ComfyUI/         (AI generation engine)
-# - core/            (system core modules)
-# - services/        (platform services)
-# - ui/              (user interface)
-```
-
-### Step 6: Font Installation
-
-Download and install the required Chinese font:
-
-```bash
-# Create fonts directory if it doesn't exist
-mkdir -p fonts
-
-# Download Noto Sans CJK TC (example URL - verify current source)
-# Place NotoSansCJKtc-Regular.otf in fonts/ directory
-```
-
-Alternative: System will fallback to "PingFang TC" on macOS if custom font unavailable.
-
-### Step 7: Camera Permissions
-
-macOS requires explicit camera permissions:
-
-1. System will automatically request permissions on first run
-2. If denied, manually enable in System Preferences:
-   - **System Preferences** → **Security & Privacy** → **Camera**
-   - Check box next to **Terminal** and **Python**
-
-### Step 8: Configuration Files
-
-Verify configuration files in `config/` directory:
-
-```bash
-ls config/
-# Should contain:
-# - anim_config.csv
-# - otherssr_config.csv  
-# - period_config.csv
-# - prompt_config.txt
-# - tts_config.txt
-# - voice_mod_config.txt
-# - weapon_config.csv
-```
-
-## Running the System
-
-### Method 1: Using Python Directly
-
-```bash
-# Ensure virtual environment is activated
-source venv/bin/activate
-
-# Run main application
-python3 main.py
-```
-
-### Method 2: Using Cursor Terminal
-
-1. Open integrated terminal in Cursor (`Cmd+` ` `)
-2. Ensure you're in project directory
-3. Activate virtual environment: `source venv/bin/activate`
-4. Run: `python3 main.py`
-
-### Method 3: Create Launch Script (Recommended)
-
-Create `start_mac.sh`:
-
-```bash
-#!/bin/bash
-cd "$(dirname "$0")"
-source venv/bin/activate
-python3 main.py
-```
-
-Make executable and run:
-```bash
-chmod +x start_mac.sh
-./start_mac.sh
-```
-
-## Configuration
-
-### System Configuration
-
-Key configuration parameters in `main.py`:
-
-```python
-# Display Settings
-DEBUG_TEXT_SIZE = 22        # Debug text size (12-24)
-CAPTION_TEXT_SIZE = 20      # Caption text size (20-40)  
-LOADING_TEXT_SIZE = 24      # Loading text size (18-32)
-
-# TTS Settings
-TTS_ENABLED = True          # Enable text-to-speech
-TTS_RATE = 160             # Speech rate (50-300)
-TTS_VOLUME = 0.8           # Volume level (0.0-1.0)
-
-# Voice Modification
-VOICE_MOD_ENABLED = True                    # Enable voice modification
-VOICE_MOD_SYNC_FROM_COMFYUI = True         # Sync from ComfyUI settings
-```
-
-### Arduino Setup (Optional)
-
-If using hardware control:
-
-1. **Install Arduino IDE** from [arduino.cc](https://www.arduino.cc)
-2. **Upload sketch**: Load `hardware/defense_system_arduino.ino` 
-3. **Connect hardware**: USB cable, verify port (usually `/dev/cu.usbserial*` or `/dev/cu.usbmodem*`)
-4. **Test connection**: System will auto-detect Arduino on serial ports
-
-## Troubleshooting
-
-### Common Issues
-
-#### Python/Pip Issues
-```bash
-# If python3 command not found
-brew install python3
-
-# If pip installation fails
-python3 -m ensurepip --default-pip
-```
-
-#### PyQt6 Issues
-```bash
-# If PyQt6 installation fails on Apple Silicon
-pip install --upgrade pip setuptools wheel
-pip install PyQt6 --no-binary PyQt6
-```
-
-#### Camera Access Denied
-1. **System Preferences** → **Security & Privacy** → **Camera**
-2. Enable for **Terminal** and **Python**  
-3. Restart application
-
-#### Font Rendering Issues
-- Download NotoSansCJKtc-Regular.otf to `fonts/` directory
-- System will fallback to PingFang TC if font missing
-
-#### Serial Port Issues
-```bash
-# List available serial ports
-python3 -c "import serial.tools.list_ports; print([p.device for p in serial.tools.list_ports.comports()])"
-
-# Grant permissions (if needed)
-sudo chmod 666 /dev/cu.usbserial*
-```
-
-### Performance Optimization
-
-#### For Apple Silicon Macs
-```bash
-# Use optimized PyTorch for M1/M2/M3
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-```
-
-#### Memory Management
-- Close unnecessary applications
-- Monitor system resources in Activity Monitor
-- Consider increasing swap space for large AI models
-
-## Development in Cursor
-
-### Recommended Extensions
-- Python
-- Pylance  
-- GitLens
-- Arduino (if using hardware features)
-
-### Cursor-Specific Features
-- Use `Cmd+K` for AI code completion
-- Use `Cmd+L` for AI chat assistance
-- Use `Cmd+I` for inline AI editing
-
-### Debugging
-```bash
-# Run with debug output
-python3 main.py --debug
-
-# Check system dependencies
-python3 -c "from services.platform_service import PlatformService; print(PlatformService().check_dependencies())"
-```
-
-## System Architecture
-
-### Core Components
-- **main.py**: Application entry point and configuration
-- **core/**: Face detection, camera management, state machine
-- **services/**: Platform services, ComfyUI integration, TTS, voice modification  
-- **ui/**: PyQt6 user interface components
-- **ComfyUI/**: AI image generation subsystem
-
-### Data Flow
-1. **Camera Input** → Face Detection → State Machine
-2. **AI Generation** → ComfyUI → Image Processing  
-3. **Voice Pipeline** → TTS → Voice Modification → Audio Output
-4. **Hardware Control** → Arduino → GPIO Devices
-
-## Support
-
-### System Information
-```bash
-# Get platform info
-python3 -c "from services.platform_service import PlatformService; import pprint; pprint.pprint(PlatformService().get_platform_info())"
-
-# Check dependencies
-python3 -c "from services.platform_service import PlatformService; print(PlatformService().check_dependencies())"
-```
-
-### Logs and Debugging
-- Application logs appear in terminal/Cursor console
-- Camera permissions logged to system console
-- Arduino communication logged to serial monitor
-
-For additional support, ensure all requirements are met and dependencies properly installed before reporting issues.
+## 更新日誌
+
+### v2.0.0
+- 🆕 新增 Kokoro TTS 高品質語音合成
+- 🆕 新增語音修改功能，支援多種音頻效果
+- 🆕 新增 ComfyUI 整合與即時同步
+- 🔧 重構目錄結構，配置文件集中管理
+- 🍎 優化 Mac 平台相容性，支援 Apple Silicon
+- ⚡ 改善音頻處理效能與即時播放
+- 📝 完善文檔與配置說明
+
+### v1.x
+- 基礎人臉偵測系統
+- AI 圖像分析功能
+- Arduino 硬體控制
+
+## 技術支援
+
+如有問題，請檢查：
+1. 系統需求是否滿足
+2. 虛擬環境是否正確安裝
+3. 相機權限是否已授予
+4. 依賴項是否完全安裝
+
+對於技術問題，可透過 GitHub Issues 回報。
