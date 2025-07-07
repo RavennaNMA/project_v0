@@ -132,7 +132,7 @@ class OllamaThread(QThread):
             caption_tc = self._clean_caption_text(caption_tc)
             # 驗證是否主要為中文
             if caption_tc and self._is_primarily_chinese(caption_tc):
-                result['caption_tc'] = caption_tc[:140]  # 適當增加到120字，確保完整性
+                result['caption_tc'] = caption_tc[:180]  # 適當增加到120字，確保完整性
                 
         # 匹配 Caption_EN: 開頭到 Weapons: 之前的內容
         en_match = re.search(r'Caption_EN:\s*(.*?)(?=Weapons:|$)', response_text, re.DOTALL | re.IGNORECASE)

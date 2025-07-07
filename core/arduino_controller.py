@@ -1,11 +1,11 @@
 # Location: project_v2/core/arduino_controller.py
-# Usage: Arduino 串口通訊與腳位控制
+# Usage: Arduino 控制器，用於控制硬體設備
 
 import serial
 import serial.tools.list_ports
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
 import time
 import platform
+from PyQt6.QtCore import QThread, QObject, pyqtSignal
 
 
 class ArduinoThread(QThread):
@@ -19,16 +19,15 @@ class ArduinoThread(QThread):
         self.port = port
         self.baudrate = baudrate
         self.serial_conn = None
-        self.command_queue = []
         self.is_running = False
+        self.command_queue = []
         
     def run(self):
         """執行緒主迴圈"""
         try:
             self.serial_conn = serial.Serial(self.port, self.baudrate, timeout=1)
-            time.sleep(2)  # 等待 Arduino 初始化
-            
             self.status_changed.emit(f"已連接到 {self.port}")
+            
             self.is_running = True
             
             # 初始化所有腳位為 LOW
@@ -228,4 +227,4 @@ class ArduinoController(QObject):
                 if "ttyUSB" in port.device or "ttyACM" in port.device:
                     ports.append((port.device, port.description))
                     
-        return ports
+        return ports 

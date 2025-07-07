@@ -43,6 +43,27 @@ TTS_RATE = 160
 TTS_VOLUME = 0.8
 
 # ================================================================
+# 語音修改配置 (Voice Modification)
+# ================================================================
+
+# 啟用語音修改功能
+# True: 啟用語音修改，False: 使用原始TTS聲音
+VOICE_MOD_ENABLED = True
+
+# 從ComfyUI同步設定 (啟用後會自動讀取ComfyUI的輸出設定)
+# True: 從ComfyUI同步，False: 使用下方手動設定
+VOICE_MOD_SYNC_FROM_COMFYUI = True
+
+# 手動語音修改設定 (當VOICE_MOD_SYNC_FROM_COMFYUI=False時使用)
+VOICE_MOD_PITCH_SHIFT = 0.0      # 音調偏移 (-12到+12半音)
+VOICE_MOD_FORMANT_SHIFT = 0.0    # 音色偏移 (-5到+5)
+VOICE_MOD_REVERB_AMOUNT = 0.0    # 混響量 (0.0-1.0)
+VOICE_MOD_ECHO_DELAY = 0.0       # 回聲延遲 (0.0-1.0)
+VOICE_MOD_COMPRESSION = 0.0      # 壓縮量 (0.0-1.0)
+VOICE_MOD_EFFECT_BLEND = 1.0     # 效果混合比例 (0.0-1.0)
+VOICE_MOD_OUTPUT_VOLUME = 0.0    # 輸出音量 (-20dB到+20dB)
+
+# ================================================================
 # 字體大小調整說明：
 # 1. 修改上方的數值後，重新運行程式即可看到效果
 # 2. Mini mode 會自動縮放至 0.5 倍
@@ -105,6 +126,17 @@ class DefenseDetectionSystem:
         params['tts_enabled'] = TTS_ENABLED
         params['tts_rate'] = TTS_RATE
         params['tts_volume'] = TTS_VOLUME
+        
+        # 將語音修改配置加入啟動參數
+        params['voice_mod_enabled'] = VOICE_MOD_ENABLED
+        params['voice_mod_sync_from_comfyui'] = VOICE_MOD_SYNC_FROM_COMFYUI
+        params['voice_mod_pitch_shift'] = VOICE_MOD_PITCH_SHIFT
+        params['voice_mod_formant_shift'] = VOICE_MOD_FORMANT_SHIFT
+        params['voice_mod_reverb_amount'] = VOICE_MOD_REVERB_AMOUNT
+        params['voice_mod_echo_delay'] = VOICE_MOD_ECHO_DELAY
+        params['voice_mod_compression'] = VOICE_MOD_COMPRESSION
+        params['voice_mod_effect_blend'] = VOICE_MOD_EFFECT_BLEND
+        params['voice_mod_output_volume'] = VOICE_MOD_OUTPUT_VOLUME
         
         # 建立並顯示主視窗
         self.main_window = MainWindow(params)

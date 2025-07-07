@@ -9,7 +9,7 @@ from typing import Dict, Any, Union
 class TTSConfigLoader:
     """TTS 配置文件加載器"""
     
-    def __init__(self, config_file='TTS_config.txt'):
+    def __init__(self, config_file='tts_config.txt'):
         self.config_file = config_file
         self.config = {}
         self.load_config()
@@ -77,69 +77,41 @@ class TTSConfigLoader:
     def _print_key_settings(self):
         """打印關鍵設定"""
         key_settings = [
-            'enabled', 'rate', 'volume', 'pitch_adjustment',
-            'voice_selection_mode', 'preferred_voice_id', 
-            'emphasis_level', 'pause_duration_multiplier',
-            'auto_stop_previous', 'progress_report_interval'
+            'enabled', 'realtime_mode', 'kokoro_lang_code', 'kokoro_voice', 
+            'kokoro_speed', 'min_english_chars', 'auto_clean_text',
+            'max_chunk_length', 'min_chunk_length', 'verbose_logging'
         ]
         
         print("TTS 關鍵設定:")
         for key in key_settings:
             if key in self.config:
                 value = self.config[key]
-                if key == 'preferred_voice_id' and len(str(value)) > 50:
-                    # 截短語音ID顯示
-                    short_id = str(value).split('\\')[-1] if '\\' in str(value) else str(value)
-                    print(f"  {key}: {short_id}")
-                else:
-                    print(f"  {key}: {value}")
+                print(f"  {key}: {value}")
     
     def use_defaults(self):
         """使用默認配置"""
         self.config = {
             # 基本設定
             'enabled': True,
-            'rate': 140,
-            'volume': 0.7,
-            'voice_selection_mode': 'auto',
-            'preferred_voice_id': '',
+            'realtime_mode': True,
             
-            # 語音特效
-            'pitch_adjustment': -15,
-            'enhance_punctuation_pauses': True,
-            'use_ssml': False,
+            # Kokoro TTS 語音設定
+            'kokoro_lang_code': 'a',
+            'kokoro_voice': 'am_adam',
+            'kokoro_speed': 1.1,
             
-            # 語音過濾
+            # 文字處理設定
             'min_english_chars': 3,
             'auto_clean_text': True,
-            'speak_punctuation': False,
-            
-            # 性能設定
-            'queue_timeout': 1.0,
-            'text_processing_delay': 100,
-            'error_retry_count': 2,
-            
-            # 同步設定
-            'synchronous_speech': True,
-            'auto_stop_previous': False,
-            'progress_report_interval': 50,
-            
-            # 聲線調整
-            'emphasis_level': 1,
-            'enable_speed_variation': False,
-            'pause_duration_multiplier': 1.2,
+            'max_chunk_length': 80,
+            'min_chunk_length': 8,
             
             # 調試設定
             'verbose_logging': True,
             'test_mode': False,
-            'test_text': 'Defense system TTS configuration loaded successfully.',
-            
-            # 高級設定
-            'engine_priority': 'sapi5',
-            'buffer_size': 200,
-            'preload_next_sentence': True
+            'test_text': 'Hello! This is a test of Kokoro TTS system. The voice quality should be excellent.'
         }
-        print("使用TTS默認配置")
+        print("使用 Kokoro TTS 默認配置")
     
     def get(self, key: str, default: Any = None) -> Any:
         """獲取配置值"""
@@ -182,110 +154,113 @@ class TTSConfigLoader:
         self.load_config()
     
     def validate_config(self) -> Dict[str, str]:
-        """驗證配置的有效性"""
+        """驗證 Kokoro TTS 配置的有效性"""
         errors = {}
         
-        # 檢查數值範圍
-        rate = self.get_int('rate', 140)
-        if not (50 <= rate <= 300):
-            errors['rate'] = f"語音速度必須在50-300之間，當前值: {rate}"
+        # 檢查語言代碼
+        lang_code = self.get_str('kokoro_lang_code', 'a')
+        if lang_code not in ['a', 'b']:
+            errors['kokoro_lang_code'] = f"語言代碼必須是 'a' 或 'b'，當前值: {lang_code}"
         
-        volume = self.get_float('volume', 0.7)
-        if not (0.0 <= volume <= 1.0):
-            errors['volume'] = f"音量必須在0.0-1.0之間，當前值: {volume}"
+        # 檢查語音速度
+        speed = self.get_float('kokoro_speed', 1.1)
+        if not (0.5 <= speed <= 2.0):
+            errors['kokoro_speed'] = f"語音速度必須在 0.5-2.0 之間，當前值: {speed}"
         
-        pitch = self.get_int('pitch_adjustment', 0)
-        if not (-50 <= pitch <= 50):
-            errors['pitch_adjustment'] = f"音調調整必須在-50到50之間，當前值: {pitch}"
-        
+        # 檢查最小英文字符數
         min_chars = self.get_int('min_english_chars', 3)
         if min_chars < 1:
-            errors['min_english_chars'] = f"最小英文字母數必須大於0，當前值: {min_chars}"
+            errors['min_english_chars'] = f"最小英文字母數必須大於 0，當前值: {min_chars}"
         
-        emphasis = self.get_int('emphasis_level', 1)
-        if not (0 <= emphasis <= 3):
-            errors['emphasis_level'] = f"語氣強度必須在0-3之間，當前值: {emphasis}"
+        # 檢查片段長度設定
+        max_chunk = self.get_int('max_chunk_length', 80)
+        min_chunk = self.get_int('min_chunk_length', 8)
         
-        pause_mult = self.get_float('pause_duration_multiplier', 1.0)
-        if not (0.1 <= pause_mult <= 5.0):
-            errors['pause_duration_multiplier'] = f"停頓時長倍數必須在0.1-5.0之間，當前值: {pause_mult}"
+        if max_chunk < 10:
+            errors['max_chunk_length'] = f"最大片段長度必須大於 10，當前值: {max_chunk}"
         
-        progress_interval = self.get_int('progress_report_interval', 50)
-        if not (10 <= progress_interval <= 1000):
-            errors['progress_report_interval'] = f"進度回報間隔必須在10-1000毫秒之間，當前值: {progress_interval}"
+        if min_chunk < 1:
+            errors['min_chunk_length'] = f"最小片段長度必須大於 0，當前值: {min_chunk}"
+        
+        if min_chunk >= max_chunk:
+            errors['chunk_length'] = f"最小片段長度 ({min_chunk}) 必須小於最大片段長度 ({max_chunk})"
+        
+        # 檢查語音ID的有效性
+        voices = self.get_all_available_voices()
+        lang_code = self.get_str('kokoro_lang_code', 'a')
+        voice_id = self.get_str('kokoro_voice', 'am_adam')
+        
+        if lang_code in voices and voice_id not in voices[lang_code]:
+            available_voices = list(voices[lang_code].keys())
+            errors['kokoro_voice'] = f"語音 '{voice_id}' 不適用於語言 '{lang_code}'，可用語音: {available_voices}"
         
         return errors
     
     def get_all_available_voices(self):
-        """獲取系統所有可用的語音列表"""
-        try:
-            import pyttsx3
-            engine = pyttsx3.init()
-            voices = engine.getProperty('voices')
-            
-            voice_list = []
-            for voice in voices:
-                voice_info = {
-                    'id': voice.id,
-                    'name': voice.name,
-                    'languages': getattr(voice, 'languages', []),
-                    'gender': getattr(voice, 'gender', 'unknown'),
-                    'age': getattr(voice, 'age', 'unknown')
-                }
-                voice_list.append(voice_info)
-            
-            engine.stop()
-            return voice_list
-            
-        except Exception as e:
-            print(f"獲取語音列表失敗: {e}")
-            return []
+        """獲取 Kokoro TTS 可用的語音列表"""
+        kokoro_voices = {
+            # 美式英語語音
+            'a': {
+                'am_adam': '中性男聲 Adam（推薦用於防禦系統）',
+                'am_michael': '深沉男聲 Michael',
+                'af_sarah': '清晰女聲 Sarah',
+                'af_nicole': '溫和女聲 Nicole',
+                'af_sky': '活潑女聲 Sky',
+                'af_bella': '專業女聲 Bella'
+            },
+            # 英式英語語音
+            'b': {
+                'bf_emma': '英式女聲 Emma',
+                'bf_isabella': '英式女聲 Isabella',
+                'bm_george': '英式男聲 George',
+                'bm_lewis': '英式男聲 Lewis'
+            }
+        }
+        
+        return kokoro_voices
     
     def print_available_voices(self):
-        """打印所有可用的語音"""
+        """打印所有可用的 Kokoro TTS 語音"""
         voices = self.get_all_available_voices()
         
-        if not voices:
-            print("無法獲取可用語音列表")
-            return
+        print(f"\n=== Kokoro TTS 可用語音列表 ===")
         
-        print(f"\n=== 系統可用語音列表 (共 {len(voices)} 個) ===")
-        
-        for i, voice in enumerate(voices, 1):
-            print(f"\n{i}. {voice['name']}")
-            print(f"   ID: {voice['id']}")
-            if voice['languages']:
-                print(f"   語言: {voice['languages']}")
-            if voice['gender'] != 'unknown':
-                print(f"   性別: {voice['gender']}")
+        for lang_code, lang_voices in voices.items():
+            lang_name = "美式英語" if lang_code == 'a' else "英式英語"
+            print(f"\n【{lang_name} (kokoro_lang_code={lang_code})】")
+            
+            for voice_id, description in lang_voices.items():
+                print(f"  • {voice_id}: {description}")
         
         print("\n" + "="*50)
-        print("如要使用特定語音，請複製ID到TTS_config.txt的preferred_voice_id設定中")
-        print("="*50) 
+        print("如要使用特定語音，請在 tts_config.txt 中設定：")
+        print("kokoro_lang_code=a  # 語言代碼")
+        print("kokoro_voice=am_adam  # 語音ID") 
+        print("="*50)
     
     def get_voice_character_settings(self) -> Dict[str, Any]:
-        """獲取語音角色設定"""
+        """獲取 Kokoro TTS 語音設定"""
         return {
-            'emphasis_level': self.get_int('emphasis_level', 1),
-            'enable_speed_variation': self.get_bool('enable_speed_variation', False),
-            'pause_duration_multiplier': self.get_float('pause_duration_multiplier', 1.2),
-            'enhance_punctuation_pauses': self.get_bool('enhance_punctuation_pauses', True)
+            'kokoro_lang_code': self.get_str('kokoro_lang_code', 'a'),
+            'kokoro_voice': self.get_str('kokoro_voice', 'am_adam'),
+            'kokoro_speed': self.get_float('kokoro_speed', 1.1)
         }
     
-    def get_sync_settings(self) -> Dict[str, Any]:
-        """獲取同步設定"""
+    def get_text_processing_settings(self) -> Dict[str, Any]:
+        """獲取文字處理設定"""
         return {
-            'synchronous_speech': self.get_bool('synchronous_speech', True),
-            'auto_stop_previous': self.get_bool('auto_stop_previous', False),
-            'progress_report_interval': self.get_int('progress_report_interval', 50)
+            'min_english_chars': self.get_int('min_english_chars', 3),
+            'auto_clean_text': self.get_bool('auto_clean_text', True),
+            'max_chunk_length': self.get_int('max_chunk_length', 80),
+            'min_chunk_length': self.get_int('min_chunk_length', 8)
         }
     
-    def get_performance_settings(self) -> Dict[str, Any]:
-        """獲取性能設定"""
+    def get_general_settings(self) -> Dict[str, Any]:
+        """獲取一般設定"""
         return {
-            'queue_timeout': self.get_float('queue_timeout', 1.0),
-            'text_processing_delay': self.get_int('text_processing_delay', 100),
-            'error_retry_count': self.get_int('error_retry_count', 2),
-            'buffer_size': self.get_int('buffer_size', 200),
-            'preload_next_sentence': self.get_bool('preload_next_sentence', True)
+            'enabled': self.get_bool('enabled', True),
+            'realtime_mode': self.get_bool('realtime_mode', True),
+            'verbose_logging': self.get_bool('verbose_logging', True),
+            'test_mode': self.get_bool('test_mode', False),
+            'test_text': self.get_str('test_text', 'Hello! This is a test of Kokoro TTS system.')
         }

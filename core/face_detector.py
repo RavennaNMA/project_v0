@@ -194,4 +194,4 @@ class FaceDetector(QObject):
             try:
                 self.face_detection.close()
             except Exception as e:
-                print(f"Error closing face detection: {e}")
+                print(f"Error closing face detection: {e}") 

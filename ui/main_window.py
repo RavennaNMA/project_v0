@@ -199,11 +199,24 @@ class MainWindow(QMainWindow):
         self.caption_widget.tc_typing_complete.connect(self.on_tc_typing_complete)
         self.caption_widget.en_typing_complete.connect(self.on_en_typing_complete)
         
-        # TTS 信號連接
-        if hasattr(self, 'tts_service'):
+        # TTS 信號連接 - 確保即時字幕同步
+        if hasattr(self, 'tts_service') and self.tts_service is not None:
+            print("連接 TTS 服務信號以支援即時字幕同步...")
+            
+            # 連接 TTS 生命週期信號
+            self.tts_service.tts_started.connect(self.on_tts_started)
             self.tts_service.tts_finished.connect(self.on_tts_finished)
-            self.tts_service.tts_progress.connect(self.on_tts_progress)  # 新增進度追蹤
-            self.tts_service.tts_progress.connect(self.caption_widget.update_tts_progress)  # 連接到字幕進度更新
+            self.tts_service.tts_error.connect(self.on_tts_error)
+            
+            # 連接進度信號 - 這是即時打字效果的關鍵
+            self.tts_service.tts_progress.connect(self.on_tts_progress)
+            self.tts_service.tts_progress.connect(self.caption_widget.update_tts_progress)
+            
+            # 連接文字片段信號 - 提供更精細的同步
+            self.tts_service.tts_word_progress.connect(self.on_tts_word_progress)  
+            self.tts_service.tts_word_progress.connect(self.caption_widget.update_tts_word_progress)
+            
+            print("✅ TTS 即時字幕同步信號已連接")
             
         # SSR控制器信號
         self.ssr_controller.spotlight_ready.connect(self.on_spotlight_ready)
@@ -257,43 +270,53 @@ class MainWindow(QMainWindow):
         self.camera_label.setPixmap(pixmap)
         
         # 人臉偵測
-        detection_result = self.face_detector.process_frame(frame)
-        current_state = self.state_machine.current_state
-        
-        if detection_result:
-            # 調整偵測結果座標
-            adjusted_bbox = self.adjust_detection_coordinates(detection_result, frame.shape, target_width, target_height)
-            if adjusted_bbox:
-                self.last_detection_bbox = adjusted_bbox
-                
-                # 只在 DETECTING 狀態更新狀態機
-                if current_state == SystemState.DETECTING:
-                    self.state_machine.update_face_detection(True)
-                
-                # 更新偵測框動畫
-                if current_state not in [SystemState.CAPTION, SystemState.SPOTLIGHT, SystemState.IMG_SHOW]:
-                    # 將檢測框向上偏移一點（約框高度的20%）
-                    frame_offset_y = int(adjusted_bbox['height'] * 0.2)
-                    adjusted_y = int(adjusted_bbox['y']) - frame_offset_y
+        try:
+            detection_result = self.face_detector.process_frame(frame)
+            current_state = self.state_machine.current_state
+            
+            if detection_result:
+                # 調整偵測結果座標
+                adjusted_bbox = self.adjust_detection_coordinates(detection_result, frame.shape, target_width, target_height)
+                if adjusted_bbox:
+                    self.last_detection_bbox = adjusted_bbox
                     
-                    # 確保Y座標不會超出畫面邊界
-                    adjusted_y = max(0, adjusted_y)
+                    # 只在 DETECTING 狀態更新狀態機
+                    if current_state == SystemState.DETECTING:
+                        self.state_machine.update_face_detection(True)
                     
-                    face_rect = (int(adjusted_bbox['x']), adjusted_y, 
-                               int(adjusted_bbox['width']), int(adjusted_bbox['height']))
-                    self.detection_overlay.update_faces([face_rect])
+                    # 更新偵測框動畫
+                    if current_state not in [SystemState.CAPTION, SystemState.SPOTLIGHT, SystemState.IMG_SHOW]:
+                        # 將檢測框向上偏移一點（約框高度的20%）
+                        frame_offset_y = int(adjusted_bbox['height'] * 0.2)
+                        adjusted_y = int(adjusted_bbox['y']) - frame_offset_y
+                        
+                        # 確保Y座標不會超出畫面邊界
+                        adjusted_y = max(0, adjusted_y)
+                        
+                        face_rect = (int(adjusted_bbox['x']), adjusted_y, 
+                                   int(adjusted_bbox['width']), int(adjusted_bbox['height']))
+                        self.detection_overlay.update_faces([face_rect])
+                    else:
+                        self.detection_overlay.clear_detections()
                 else:
+                    self.last_detection_bbox = None
+                    if current_state == SystemState.DETECTING:
+                        self.state_machine.update_face_detection(False)
                     self.detection_overlay.clear_detections()
             else:
                 self.last_detection_bbox = None
                 if current_state == SystemState.DETECTING:
                     self.state_machine.update_face_detection(False)
                 self.detection_overlay.clear_detections()
-        else:
+        except Exception as e:
+            print(f"Face detection processing error: {e}")
             self.last_detection_bbox = None
-            if current_state == SystemState.DETECTING:
-                self.state_machine.update_face_detection(False)
-            self.detection_overlay.clear_detections()
+            if hasattr(self, 'state_machine'):
+                current_state = self.state_machine.current_state
+                if current_state == SystemState.DETECTING:
+                    self.state_machine.update_face_detection(False)
+            if hasattr(self, 'detection_overlay'):
+                self.detection_overlay.clear_detections()
                 
     def crop_frame_to_portrait(self, frame):
         """從 1920x1080 裁切出中間的 1080x1920 區域"""
@@ -315,6 +338,15 @@ class MainWindow(QMainWindow):
         
     def adjust_detection_coordinates(self, detection_result, original_shape, display_width, display_height):
         """調整偵測座標以配合裁切後的顯示"""
+        # 安全檢查
+        if not detection_result or not isinstance(detection_result, dict):
+            return None
+            
+        # 檢查必要的鍵是否存在
+        required_keys = ['x', 'y', 'width', 'height']
+        if not all(key in detection_result for key in required_keys):
+            return None
+            
         orig_h, orig_w = original_shape[:2]
         
         target_ratio = 9/16
@@ -493,11 +525,25 @@ class MainWindow(QMainWindow):
             self.caption_completed = True
             self.check_all_completed()
     
+    def on_tts_started(self):
+        """TTS 開始朗讀"""
+        if self.startup_params['debug_mode']:
+            print("TTS: 開始語音朗讀")
+    
     def on_tts_progress(self, current_pos, total_len):
-        """TTS進度更新"""
+        """TTS進度更新 - 用於即時字幕同步"""
         if self.startup_params['debug_mode']:
             progress = (current_pos / total_len * 100) if total_len > 0 else 0
-            print(f"TTS Progress: {current_pos}/{total_len} ({progress:.1f}%)")
+            print(f"TTS Progress: {current_pos}/{total_len} ({progress:.1f}%) - 同步字幕顯示")
+    
+    def on_tts_word_progress(self, current_chunk):
+        """TTS即時文字片段進度更新 - 提供精細同步"""
+        if self.startup_params['debug_mode']:
+            print(f"TTS Word Progress: '{current_chunk}' - 即時字幕片段同步")
+    
+    def on_tts_error(self, error_msg):
+        """TTS 錯誤處理"""
+        print(f"TTS Error: {error_msg}")
         
     def on_tc_typing_complete(self):
         """TC字幕打字完成"""
@@ -551,7 +597,7 @@ class MainWindow(QMainWindow):
         """聚光燈準備完成"""
         print("Spotlight ready - transitioning to weapon display")
         self.state_machine.on_spotlight_ready()
-        
+                         
     def on_caption_lighting_ready(self):
         """字幕燈光準備完成"""
         print("Caption lighting (SSR1) ready")

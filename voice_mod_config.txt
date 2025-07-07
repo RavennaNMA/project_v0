@@ -1,0 +1,18 @@
+# 語音修改配置檔案
+voice_mod_enabled=True
+voice_profile=None
+profile_intensity=0.7
+manual_mode=True
+effect_blend=1.0
+output_volume=0.0
+# 手動模式設定 (當 manual_mode=true 時生效，目前使用Robot預設模式)
+pitch_shift=0.0
+formant_shift=0.0
+reverb_amount=0.5
+echo_delay=0.0
+distortion=0.0
+compression=0.3
+eq_bass=0.0
+eq_mid=0.2
+eq_treble=0.2
+verbose_logging=True
